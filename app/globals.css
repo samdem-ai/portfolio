@@ -1,0 +1,583 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Tokens. Dark bands (hero, footer, menu) stay dark in both themes;
+   the reading surface flips between light and dark.
+------------------------------------------------------------------- */
+:root {
+  --dark: #1c1d20;
+  --dark-2: #141517;
+  --on-dark: #ffffff;
+  --on-dark-muted: rgb(255 255 255 / 0.55);
+  --dark-rule: rgb(255 255 255 / 0.14);
+
+  --canvas: #ffffff;
+  --panel: #f1f1f0;
+  --ink: #1c1d20;
+  --ink-2: #45464b;
+  --muted: #76777c;
+  --rule: rgb(28 29 32 / 0.14);
+
+  --accent: #e5484d;
+  --on-accent: #ffffff;
+  --addr: #8abeb7;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #121315;
+    --panel: #1b1c1f;
+    --ink: #ececec;
+    --ink-2: #c4c4c6;
+    --muted: #8e8f94;
+    --rule: rgb(255 255 255 / 0.12);
+    --dark: #0b0c0d;
+    --dark-2: #070708;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #121315;
+  --panel: #1b1c1f;
+  --ink: #ececec;
+  --ink-2: #c4c4c6;
+  --muted: #8e8f94;
+  --rule: rgb(255 255 255 / 0.12);
+  --dark: #0b0c0d;
+  --dark-2: #070708;
+  color-scheme: dark;
+}
+
+:root[data-mode="ida"] {
+  --dark: #1d1f21;
+  --dark-2: #161819;
+  --canvas: #1d1f21;
+  --panel: #25282a;
+  --ink: #d5d8cf;
+  --ink-2: #b4b9ad;
+  --muted: #8a9389;
+  --rule: #34393c;
+  --accent: #f0c674;
+  --on-accent: #1d1f21;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-dark: var(--dark);
+  --color-dark-2: var(--dark-2);
+  --color-on-dark: var(--on-dark);
+  --color-on-dark-muted: var(--on-dark-muted);
+  --color-dark-rule: var(--dark-rule);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --font-sans: var(--font-albert), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* ------------------------------------------------------------------
+   Base
+------------------------------------------------------------------- */
+@layer base {
+  html {
+    background: var(--dark);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    font-weight: 400;
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+@layer components {
+  .wrap {
+    width: 100%;
+    max-width: 1440px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 5vw, 5rem);
+  }
+
+  /* Small grey label above blocks. */
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .big {
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+
+  /* Underline that draws in from the left on hover. */
+  .ulink {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.45s var(--ease-out-expo);
+  }
+  .ulink:hover,
+  .ulink:focus-visible {
+    background-size: 100% 1px;
+  }
+
+  /* Nav link with a dot that appears under it on hover. */
+  .dotlink {
+    position: relative;
+  }
+  .dotlink::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -0.55em;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    transform: translateX(-50%) scale(0);
+    transition: transform 0.35s var(--ease-out-expo);
+  }
+  .dotlink:hover::after,
+  .dotlink[aria-current="page"]::after {
+    transform: translateX(-50%) scale(1);
+  }
+
+  /* Pill button with a fill that rises from the bottom. */
+  .pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 0.95rem 1.7rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    white-space: nowrap;
+    transition: color 0.45s var(--ease-out-expo), border-color 0.45s var(--ease-out-expo);
+  }
+  .pill::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: 50% 50% 0 0 / 30% 30% 0 0;
+    background: var(--accent);
+    transform: translateY(102%);
+    transition: transform 0.55s var(--ease-out-expo), border-radius 0.55s var(--ease-out-expo);
+  }
+  .pill:hover {
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .pill:hover::before {
+    transform: translateY(0);
+    border-radius: 0;
+  }
+
+  .grid > * {
+    min-width: 0;
+  }
+
+  /* Word-by-word slide-up reveal (animated by MotionRoot). */
+  .rw {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: top;
+    padding-bottom: 0.08em;
+    margin-bottom: -0.08em;
+  }
+  .rw > span {
+    display: inline-block;
+  }
+
+  /* Post body (MDX). */
+  .prose {
+    max-width: 68ch;
+    color: var(--ink-2);
+  }
+  .prose > * + * {
+    margin-top: 1.15em;
+  }
+  .prose h2 {
+    margin-top: 2.8em;
+    color: var(--ink);
+    font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .prose h3 {
+    margin-top: 2em;
+    color: var(--ink);
+    font-size: 1.2rem;
+    font-weight: 500;
+  }
+  .prose h2 + *,
+  .prose h3 + * {
+    margin-top: 0.8em;
+  }
+  .prose strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .prose a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .prose a:hover {
+    color: var(--accent);
+  }
+  .prose ol:not(.pipe),
+  .prose ul {
+    padding-left: 1.3em;
+  }
+  .prose ol:not(.pipe) {
+    list-style: decimal;
+  }
+  .prose ul {
+    list-style: disc;
+  }
+  .prose li + li {
+    margin-top: 0.5em;
+  }
+  .prose li::marker {
+    color: var(--muted);
+  }
+  .prose :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--panel);
+    border-radius: 4px;
+    padding: 0.12em 0.4em;
+    color: var(--ink);
+  }
+  .prose pre {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+  }
+  .prose blockquote {
+    border-left: 2px solid var(--accent);
+    padding-left: 1rem;
+    color: var(--ink);
+  }
+  .prose table {
+    width: 100%;
+    font-size: 0.93rem;
+    border-collapse: collapse;
+  }
+  .prose th,
+  .prose td {
+    border-bottom: 1px solid var(--rule);
+    padding: 0.55rem 0.6rem 0.55rem 0;
+    text-align: left;
+  }
+  .prose th {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .prose img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+
+  /* Architecture sketch in posts. */
+  .pipe {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    padding: 0;
+  }
+  .pipe > li {
+    display: flex;
+    flex-direction: column;
+  }
+  .prose .pipe > li + li {
+    margin-top: 0;
+  }
+  .pipe > li + li::before {
+    content: "↓";
+    color: var(--muted);
+    text-align: center;
+    padding: 0.25rem 0;
+  }
+  @media (min-width: 768px) {
+    .pipe {
+      flex-direction: row;
+    }
+    .pipe > li {
+      flex: 1 1 0;
+      flex-direction: row;
+      align-items: center;
+    }
+    .pipe > li + li::before {
+      content: "→";
+      padding: 0 0.5rem;
+    }
+  }
+}
+
+/* Spinning globe in the location badge. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin-slow {
+  animation: spin 9s linear infinite;
+}
+
+/* Preloader is hidden for returning visitors (set by the theme script). */
+html[data-seen] .preloader {
+  display: none;
+}
+
+/* Hidden initial states, only when JS is running and motion is allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  html.js [data-reveal] .rw > span {
+    transform: translateY(110%);
+  }
+  html.js [data-fade] {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Disassembly view (Konami code)
+------------------------------------------------------------------- */
+@counter-style hex {
+  system: numeric;
+  symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "A" "B" "C" "D" "E" "F";
+  pad: 6 "0";
+}
+[data-mode="ida"] body {
+  font-family: var(--font-mono);
+  font-size: 0.93rem;
+}
+[data-mode="ida"] main {
+  counter-reset: addr 4198400;
+}
+[data-mode="ida"] main :is(h1, h2, h3, p, li) {
+  counter-increment: addr 37;
+}
+@media (min-width: 1280px) {
+  [data-mode="ida"] main :is(h2, h3, p, li) {
+    position: relative;
+  }
+  [data-mode="ida"] main :is(h2, h3, p, li)::before {
+    content: ".text:00" counter(addr, hex);
+    position: absolute;
+    right: calc(100% + 1.25rem);
+    top: 0.35em;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1;
+    color: var(--addr);
+    white-space: nowrap;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Motion & print
+------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .preloader {
+    display: none;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 14mm 12mm;
+  }
+  :root,
+  :root[data-theme="dark"],
+  :root[data-mode="ida"] {
+    --canvas: #fff;
+    --panel: #fff;
+    --ink: #000;
+    --ink-2: #222;
+    --muted: #555;
+    --rule: #ccc;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body {
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+  .no-print {
+    display: none !important;
+  }
+  a {
+    text-decoration: none !important;
+  }
+}
+
+@keyframes fadeword {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Hero globe (construction borrowed from the reference site). Colour follows currentColor. */
+.globe {
+  position: relative;
+  display: block;
+  width: 3em;
+  height: 3em;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.globe-wrap {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 0.125em currentColor;
+  transform: rotate(30deg);
+  animation: globe-tilt 5.4s cubic-bezier(0.35, 0, 0.65, 1) infinite;
+}
+.globe-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  font-size: 0.75em;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0.1em 0 0 0.08em currentColor;
+  animation: globe-meridian 2.7s linear infinite;
+}
+.globe-circle:nth-child(1) {
+  animation-delay: -1.8s;
+}
+.globe-circle:nth-child(2) {
+  animation-delay: -0.9s;
+}
+.globe-hor,
+.globe-hor-middle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  font-size: 0.75em;
+  transform: translate(-50%, -50%);
+}
+.globe-hor {
+  height: 55%;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.15em currentColor;
+}
+.globe-hor-middle {
+  height: 0.15em;
+  background: currentColor;
+}
+@keyframes globe-tilt {
+  0%,
+  100% {
+    transform: rotate(15deg);
+  }
+  50% {
+    transform: rotate(-15deg);
+  }
+}
+@keyframes globe-meridian {
+  0% {
+    width: 100%;
+    border-radius: 50%;
+    box-shadow: inset 0.1em 0 0 0.08em currentColor;
+  }
+  49% {
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: inset 0.1em 0 0 0.08em currentColor;
+  }
+  50% {
+    width: 0.175em;
+    border-radius: 0;
+    background: currentColor;
+  }
+  51% {
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: inset -0.1em 0 0 0.08em currentColor;
+  }
+  100% {
+    width: 100%;
+    border-radius: 50%;
+    box-shadow: inset -0.1em 0 0 0.08em currentColor;
+  }
+}
