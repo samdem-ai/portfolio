@@ -1,0 +1,14 @@
+/* TEAM */
+  Built by: Samy Debaili
+  Role: Cybersecurity engineer
+  From: Algiers, Algeria
+  GitHub: github.com/samdem-ai
+  Contact: m_debaili [at] estin.dz
+
+/* SITE */
+  Stack: Next.js, TypeScript, Tailwind CSS
+  Fonts: Young Serif, IBM Plex Sans, IBM Plex Mono, Kalam
+  Standards: HTML, CSS, a little too much curiosity
+
+/* NOTE */
+  There's a flag somewhere on this site. Format: SAMY{...}
