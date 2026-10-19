@@ -1,0 +1,46 @@
+---
+title: BRICKWAVE
+kind: product
+year: "2026"
+order: 12
+summary: Drop in an album cover, get a LEGO mosaic with an exact parts list and a printable build guide. Nothing is uploaded.
+why: A good excuse to do real colour science in the browser.
+note: CIEDE2000, because plain RGB distance picks the wrong colours.
+cover: /work/brickwave/cover.webp
+stack: [Next.js, TypeScript, Canvas, Web Workers, Tailwind CSS]
+repo: https://github.com/samdem-ai/brickwave-album-to-bricks
+live: https://brickwave-album-to-bricks.vercel.app
+results:
+  - value: 2,304
+    label: pieces for the DAMN. cover example
+  - value: "19"
+    label: LEGO colours in that build
+  - value: "0"
+    label: uploads, accounts or backend
+  - value: "3"
+    label: export formats
+---
+
+## The problem
+
+Turning an image into a buildable mosaic is easy to fake and hard to do well: naive colour matching produces muddy results, and a pretty picture is useless without a parts list.
+
+## What I did
+
+1. The cropped cover is area-averaged down to a stud grid, one cell per piece.
+2. Each cell is matched to the nearest real LEGO colour with CIEDE2000 in LAB space, with optional Floyd–Steinberg dithering.
+3. The maths runs in a Web Worker so the UI never stutters; tiles render from a cached sprite canvas.
+4. Exports: PNG, a CSV bill of materials, a paint-by-numbers PDF guide, and a permalink that restores your settings.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="album cover" sub="crop · pan · zoom" />
+  <Stage label="stud grid" sub="area average" />
+  <Stage label="CIEDE2000" sub="+ dithering, in a worker" />
+  <Stage label="PNG · CSV · PDF" sub="build it" />
+</Pipeline>
+
+## Results
+
+<Results />

@@ -1,0 +1,44 @@
+---
+title: safeguard-classifier
+kind: security
+year: "2026"
+order: 4
+summary: D'abord des règles peu coûteuses, ensuite un modèle de sécurité de 20B. Un classificateur de conversations IA nuisibles qui tient même sans GPU.
+why: Passer chaque message dans un grand modèle est lent et coûteux, et les cas évidents n'en ont pas besoin.
+note: Si le GPU disparaît, il se replie sur les règles et continue de répondre.
+stack: [Python, HuggingFace Transformers, gpt-oss-safeguard-20b, Docker, GPU NVIDIA]
+repo: https://github.com/samdem-ai/safeguard-classifier
+results:
+  - value: "2"
+    label: "étapes : règles, puis modèle"
+  - value: 20B
+    label: paramètres, modèle de sécurité local
+  - value: "1"
+    label: endpoint à intégrer
+  - value: "0"
+    label: interruption quand le GPU manque
+---
+
+## Le problème
+
+Modérer des conversations IA demande d'être rapide et nuancé. Les règles seules ratent le contexte ; un grand modèle seul est lent, coûteux et constitue un point de défaillance unique.
+
+## Ce que j'ai fait
+
+1. Étape 1 : règles regex et mots-clés, sans latence ajoutée.
+2. Étape 2 : si rien ne correspond, un `openai/gpt-oss-safeguard-20b` local évalue la conversation sur GPU.
+3. Si le GPU ou le modèle est indisponible, le service se replie sur les règles au lieu d'échouer.
+4. Une petite API HTTP (`POST /classify`, `GET /health`) renvoie `{ violation, confidence }`, empaquetée avec Docker Compose.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="conversation" sub="POST /classify" />
+  <Stage label="rules.py" sub="regex · mots-clés" />
+  <Stage label="gpt-oss-safeguard-20b" sub="seulement si aucune règle" />
+  <Stage label="{ violation, confidence }" sub="réponse" />
+</Pipeline>
+
+## Résultats
+
+<Results />

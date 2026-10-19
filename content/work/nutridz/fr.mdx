@@ -1,0 +1,44 @@
+---
+title: NutriDz
+kind: product
+year: "2026"
+order: 11
+summary: Un suivi nutritionnel pensé pour la cuisine algérienne. Scan photo des repas, scan de codes-barres et un nutritionniste IA en français, arabe et anglais.
+why: La plupart des applis de calories n'ont jamais entendu parler de la cuisine algérienne.
+note: En arabe, toute l'interface passe en RTL, graphiques compris.
+stack: [Expo / React Native, Spring Boot 3.4, jOOQ, MySQL, RabbitMQ, FastAPI, NVIDIA NIM]
+repo: https://github.com/samdem-ai/nutridz-prod
+results:
+  - value: "184"
+    label: produits algériens dans la base de codes-barres
+  - value: "15"
+    label: plats traditionnels avec origine régionale et histoire
+  - value: "20"
+    label: succès débloqués par de vraies actions
+  - value: "3"
+    label: langues, RTL compris
+---
+
+## Le problème
+
+Les bases nutritionnelles génériques couvrent à peine les plats algériens et les produits locaux : suivre une journée normale de repas revient à deviner.
+
+## Ce que j'ai fait
+
+1. Une application Expo avec journal quotidien, hydratation, poids et IMC, séries et succès.
+2. Un backend Spring Boot (jOOQ, MySQL, migrations Flyway, JWT, RabbitMQ).
+3. Un microservice FastAPI appelle les modèles vision et texte de NVIDIA NIM pour le scan photo, les plans de repas et le chat.
+4. Français, anglais et arabe, avec une vraie mise en page RTL.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="App Expo" sub="FR · AR · EN" />
+  <Stage label="API Spring Boot" sub="jOOQ · MySQL · RabbitMQ" />
+  <Stage label="Service IA FastAPI" sub="scan · plans · chat" />
+  <Stage label="NVIDIA NIM" sub="modèles vision + texte" />
+</Pipeline>
+
+## Résultats
+
+<Results />

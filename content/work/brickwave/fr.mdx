@@ -1,0 +1,46 @@
+---
+title: BRICKWAVE
+kind: product
+year: "2026"
+order: 12
+summary: Déposez une pochette d'album, obtenez une mosaïque LEGO avec la liste exacte des pièces et un guide de montage imprimable. Rien n'est envoyé.
+why: Un bon prétexte pour faire de la vraie science des couleurs dans le navigateur.
+note: CIEDE2000, parce qu'une simple distance RGB choisit les mauvaises couleurs.
+cover: /work/brickwave/cover.webp
+stack: [Next.js, TypeScript, Canvas, Web Workers, Tailwind CSS]
+repo: https://github.com/samdem-ai/brickwave-album-to-bricks
+live: https://brickwave-album-to-bricks.vercel.app
+results:
+  - value: 2 304
+    label: pièces pour l'exemple de la pochette DAMN.
+  - value: "19"
+    label: couleurs LEGO dans ce montage
+  - value: "0"
+    label: envoi, compte ou backend
+  - value: "3"
+    label: formats d'export
+---
+
+## Le problème
+
+Transformer une image en mosaïque constructible est facile à bâcler et difficile à bien faire : une correspondance de couleurs naïve donne un résultat terne, et une belle image ne sert à rien sans liste de pièces.
+
+## Ce que j'ai fait
+
+1. La pochette recadrée est moyennée par zones jusqu'à une grille de tenons, une cellule par pièce.
+2. Chaque cellule est associée à la couleur LEGO réelle la plus proche via CIEDE2000 dans l'espace LAB, avec tramage Floyd–Steinberg en option.
+3. Les calculs tournent dans un Web Worker pour que l'interface reste fluide ; les tuiles sont rendues depuis un canvas de sprites en cache.
+4. Exports : PNG, nomenclature CSV, guide PDF façon peinture par numéros, et un lien permanent qui restaure vos réglages.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="pochette" sub="recadrage" />
+  <Stage label="grille de tenons" sub="moyenne par zone" />
+  <Stage label="CIEDE2000" sub="+ tramage, dans un worker" />
+  <Stage label="PNG · CSV · PDF" sub="à construire" />
+</Pipeline>
+
+## Résultats
+
+<Results />

@@ -1,0 +1,81 @@
+---
+title: Smart DFIR Platform
+kind: security
+year: 2025–26
+order: 1
+status: Engineering thesis · Air Algérie internship
+summary: Endpoint forensics, log correlation and an LLM assistant that held up against every prompt injection we tested. Built during my internship at Air Algérie.
+why: Responders drown in artefacts. I wanted to know if an LLM could help correlate evidence without becoming the weakest link in the stack.
+note: Co-authored with Salim Abdoune. Screenshots are from the thesis, with logos and lab hostnames redacted.
+cover: /work/dfir-platform/dashboard.webp
+stack: [Velociraptor, Elastic Stack, qwen25-dfir (fine-tuned), RAG, Caldera, Docker Compose]
+results:
+  - value: 100%
+    label: detection across 8 emulated ATT&CK techniques
+  - value: 23.5 s
+    label: mean time to detect
+  - value: 100%
+    label: of tested adversarial prompts blocked
+  - value: "0"
+    label: regressions across 8 DFIR task categories after fine-tuning
+---
+
+## Context
+
+This was my engineering thesis at ESTIN, built with Salim Abdoune during a six-month internship (February–July 2026) at **Air Algérie**, Algeria's national airline, mentored by one of their cybersecurity engineers. The internship gave us real infrastructure constraints to design against; the platform itself was deployed on our own cloud VPS and test endpoints.
+
+## The problem
+
+During an incident, evidence is scattered across endpoints, log sources and tools, and commercial SIEMs are expensive. Adding an LLM to the investigation helps with the reading, but it also adds an attack surface: anyone who can put text in front of the model can try to steer it.
+
+## What I did
+
+1. Velociraptor collects forensic artefacts from the endpoints; the Elastic Stack ingests and correlates the logs.
+2. A fine-tuned model, `qwen25-dfir`, answers the analyst's questions and is grounded in the evidence through a RAG pipeline.
+3. Every prompt goes through a four-stage injection classifier before it reaches the model.
+4. The whole thing ships as Docker Compose on a cloud VPS, so it can be torn down and rebuilt from scratch.
+5. Evaluation: Caldera emulated 8 MITRE ATT&CK techniques, and we compared detection against Wazuh and Splunk.
+
+## Architecture
+
+<Pipeline>
+  <Lane title="Collection & detection">
+    <Stage label="Caldera" sub="8 ATT&CK techniques" />
+    <Stage label="Endpoints" sub="Velociraptor agents" />
+    <Stage label="Velociraptor" sub="forensic collection" />
+    <Stage label="Elastic Stack" sub="ingest + correlate" />
+  </Lane>
+  <Lane title="Analyst assistant">
+    <Stage label="Analyst" sub="question" />
+    <Stage label="Injection filter" sub="4 stages" />
+    <Stage label="RAG" sub="evidence from Elastic" />
+    <Stage label="qwen25-dfir" sub="fine-tuned LLM" />
+  </Lane>
+</Pipeline>
+
+## The platform
+
+<Gallery>
+  <Figure src="/work/dfir-platform/attack.webp" caption="ATT&CK coverage map, lit up by the techniques the rules detected." />
+  <Figure src="/work/dfir-platform/assistant.webp" caption="The AI assistant, with Velociraptor hunts and endpoints as evidence sources." />
+  <Figure src="/work/dfir-platform/hunt-generator.webp" caption="VQL Hunt Generator: describe a threat in plain language, get a Velociraptor query." />
+  <Figure src="/work/dfir-platform/health.webp" caption="System health across the seven services: Elastic, Kibana, Logstash, Velociraptor, the API, the LLM and the frontend." />
+</Gallery>
+
+## Testing it
+
+We ran the attacks with MITRE Caldera, one operation per technique, and timed how long each took to surface as an alert.
+
+<Figure src="/work/dfir-platform/caldera.webp" caption="Caldera operations, one per emulated ATT&CK technique." />
+
+The injection filter was tested against a corpus of 25 adversarial prompts, first with the classifier switched off, then on. Here is the same XML system-tag injection both ways:
+
+<Figure src="/work/dfir-platform/injection-off.webp" caption="Classifier disabled: the model accepts the fake system override and starts writing a reverse shell." />
+
+<Figure src="/work/dfir-platform/injection-on.webp" caption="Classifier enabled: the same prompt is stopped before it reaches the model." />
+
+## Results
+
+<Results />
+
+{/* TODO(Samy): add a "## What I learned" section — one or two sentences on what surprised you. */}

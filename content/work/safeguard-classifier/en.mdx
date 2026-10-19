@@ -1,0 +1,44 @@
+---
+title: safeguard-classifier
+kind: security
+year: "2026"
+order: 4
+summary: Cheap rules first, a 20B safety model second. A classifier for harmful AI conversations that degrades gracefully without a GPU.
+why: Running a large model on every message is slow and expensive, and the obvious cases don't need one.
+note: If the GPU disappears, it falls back to the rules and keeps answering.
+stack: [Python, HuggingFace Transformers, gpt-oss-safeguard-20b, Docker, NVIDIA GPU]
+repo: https://github.com/samdem-ai/safeguard-classifier
+results:
+  - value: "2"
+    label: "stages: rules, then model"
+  - value: 20B
+    label: parameter safety model, run locally
+  - value: "1"
+    label: endpoint to integrate
+  - value: "0"
+    label: downtime when the GPU is missing
+---
+
+## The problem
+
+Moderating AI conversations needs to be both fast and nuanced. Rules alone miss context; a large model alone is slow, costly and a single point of failure.
+
+## What I did
+
+1. Stage 1: regex and keyword rules, with zero added latency.
+2. Stage 2: if nothing matched, a local `openai/gpt-oss-safeguard-20b` scores the conversation on GPU.
+3. If the GPU or the model is unavailable, the service falls back to rules only instead of failing.
+4. A small HTTP API (`POST /classify`, `GET /health`) returns `{ violation, confidence }`, packaged with Docker Compose.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="conversation" sub="POST /classify" />
+  <Stage label="rules.py" sub="regex · keywords" />
+  <Stage label="gpt-oss-safeguard-20b" sub="only if no rule fired" />
+  <Stage label="{ violation, confidence }" sub="response" />
+</Pipeline>
+
+## Results
+
+<Results />

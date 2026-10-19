@@ -1,0 +1,47 @@
+---
+title: promptvault
+kind: security
+year: "2026"
+order: 3
+summary: A local-first workspace for prompt-injection research. Challenges, versioned prompts and per-model results, all in your browser.
+why: AI red-teaming leaves you with prompts scattered across chat exports and no record of what worked on which model.
+note: No server, no account, no telemetry.
+cover: /work/promptvault/cover.webp
+stack: [React 19, TypeScript, Vite, Dexie (IndexedDB), Zustand, React Router]
+repo: https://github.com/samdem-ai/promptvault
+live: https://promptvault-alpha.vercel.app
+results:
+  - value: "365"
+    label: real Gray Swan submissions in the sample dataset
+  - value: "32"
+    label: challenges
+  - value: "0"
+    label: servers, accounts or trackers
+  - value: ⌘K
+    label: search across everything
+---
+
+## The problem
+
+Prompt-injection work is iterative: you tweak a prompt, try it on three models, tweak it again. In a chat window, the history of what you tried and what it did disappears.
+
+## What I did
+
+1. Challenge-first organisation: prompts live under the challenge they target, not in a flat list.
+2. Every edit creates a new version, and every run is logged per model as bypassed, partial or blocked.
+3. Importers for ChatGPT and Claude exports, raw JSON and plain text; export to JSON or a Markdown report.
+4. Everything is stored in IndexedDB. Nothing leaves the machine.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="exports · JSON · text" sub="import" />
+  <Stage label="parsers" sub="normalise" />
+  <Stage label="IndexedDB" sub="Dexie" />
+  <Stage label="challenges → versions → runs" sub="workspace" />
+  <Stage label="JSON · Markdown" sub="export" />
+</Pipeline>
+
+## Results
+
+<Results />

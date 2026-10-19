@@ -1,0 +1,44 @@
+---
+title: NutriDz
+kind: product
+year: "2026"
+order: 11
+summary: A nutrition tracker built around Algerian food. Photo meal scan, barcode scan and an AI nutritionist that speaks French, Arabic and English.
+why: Most calorie apps have never heard of Algerian home cooking.
+note: Arabic flips the whole UI to RTL, charts included.
+stack: [Expo / React Native, Spring Boot 3.4, jOOQ, MySQL, RabbitMQ, FastAPI, NVIDIA NIM]
+repo: https://github.com/samdem-ai/nutridz-prod
+results:
+  - value: "184"
+    label: Algerian products in the barcode database
+  - value: "15"
+    label: traditional dishes with regional origin and history
+  - value: "20"
+    label: achievements unlocked by real actions
+  - value: "3"
+    label: languages, RTL included
+---
+
+## The problem
+
+Generic nutrition databases barely cover Algerian dishes or local packaged products, so tracking a normal day of eating here means guessing.
+
+## What I did
+
+1. An Expo app with a daily journal, hydration, weight and BMI tracking, streaks and achievements.
+2. A Spring Boot backend (jOOQ, MySQL, Flyway migrations, JWT, RabbitMQ).
+3. A FastAPI microservice calls NVIDIA NIM vision and text models for the photo scan, meal plans and chat.
+4. French, English and Arabic, with a proper RTL layout.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="Expo app" sub="FR · AR · EN" />
+  <Stage label="Spring Boot API" sub="jOOQ · MySQL · RabbitMQ" />
+  <Stage label="FastAPI AI service" sub="scan · plans · chat" />
+  <Stage label="NVIDIA NIM" sub="vision + text models" />
+</Pipeline>
+
+## Results
+
+<Results />

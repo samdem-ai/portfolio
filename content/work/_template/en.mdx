@@ -1,0 +1,41 @@
+---
+title: My new project
+kind: security            # security | product
+year: "2026"
+order: 5                  # lower = higher on the home page (security 1–10, products 11+)
+draft: true               # delete this line to publish
+status: Work in progress  # optional little tag next to the title
+summary: One or two sentences. Shown on the home page and in link previews.
+why: One sentence on why it exists. Shown at the top of the post.
+note: Optional side note shown under the title.
+cover: /work/my-new-project/cover.webp   # optional screenshot in public/work/<folder>/
+stack: [Python, Docker]
+repo: https://github.com/samdem-ai/your-repo   # optional
+live: https://example.com                      # optional
+results:                  # optional, shown wherever you put <Results />
+  - value: "42"
+    label: things measured
+---
+
+## The problem
+
+Plain markdown works: **bold**, `code`, [links](https://example.com), lists, tables, images.
+
+## What I did
+
+1. First step.
+2. Second step.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="input" sub="where it starts" />
+  <Stage label="processing" />
+  <Stage label="output" sub="where it ends" />
+</Pipeline>
+
+## Results
+
+<Results />
+
+<Note>A highlighted aside, if you need one.</Note>

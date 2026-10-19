@@ -1,0 +1,79 @@
+---
+title: Smart DFIR Platform
+kind: security
+year: 2025–26
+order: 1
+status: Projet de fin d'études · stage chez Air Algérie
+summary: Forensique des postes, corrélation de logs et un assistant LLM qui a résisté à toutes les injections de prompt testées. Réalisé pendant mon stage chez Air Algérie.
+why: Les analystes croulent sous les artefacts. Je voulais savoir si un LLM pouvait aider à corréler les preuves sans devenir le maillon faible.
+note: Co-réalisé avec Salim Abdoune. Captures issues du mémoire, logos et noms de machines du labo masqués.
+cover: /work/dfir-platform/dashboard.webp
+stack: [Velociraptor, Elastic Stack, qwen25-dfir (affiné), RAG, Caldera, Docker Compose]
+results:
+  - value: 100 %
+    label: de détection sur 8 techniques ATT&CK émulées
+  - value: 23,5 s
+    label: temps moyen de détection
+  - value: 100 %
+    label: des prompts adversariaux testés bloqués
+  - value: "0"
+    label: régression sur 8 catégories de tâches DFIR après l'affinage
+---
+
+## Contexte
+
+C'est mon projet de fin d'études d'ingénieur à l'ESTIN, réalisé avec Salim Abdoune pendant un stage de six mois (février–juillet 2026) chez **Air Algérie**, la compagnie aérienne nationale, encadré par l'un de ses ingénieurs en cybersécurité. Le stage nous a donné de vraies contraintes d'infrastructure ; la plateforme elle-même était déployée sur notre propre VPS cloud et nos postes de test.
+
+## Le problème
+
+Pendant un incident, les preuves sont dispersées entre les postes, les sources de logs et les outils, et les SIEM commerciaux coûtent cher. Ajouter un LLM aide à la lecture, mais crée aussi une surface d'attaque : quiconque peut placer du texte devant le modèle peut essayer de l'orienter.
+
+## Ce que j'ai fait
+
+1. Velociraptor collecte les artefacts forensiques sur les postes ; l'Elastic Stack ingère et corrèle les logs.
+2. Un modèle affiné, `qwen25-dfir`, répond aux questions de l'analyste, ancré dans les preuves grâce à un pipeline RAG.
+3. Chaque prompt passe par un classificateur d'injection en quatre étapes avant d'atteindre le modèle.
+4. L'ensemble est déployé en Docker Compose sur un VPS cloud : on peut tout détruire et tout reconstruire.
+5. Évaluation : Caldera a émulé 8 techniques MITRE ATT&CK, et nous avons comparé la détection à Wazuh et Splunk.
+
+## Architecture
+
+<Pipeline>
+  <Lane title="Collecte et détection">
+    <Stage label="Caldera" sub="8 techniques ATT&CK" />
+    <Stage label="Postes" sub="agents Velociraptor" />
+    <Stage label="Velociraptor" sub="collecte forensique" />
+    <Stage label="Elastic Stack" sub="ingestion + corrélation" />
+  </Lane>
+  <Lane title="Assistant de l'analyste">
+    <Stage label="Analyste" sub="question" />
+    <Stage label="Filtre d'injection" sub="4 étapes" />
+    <Stage label="RAG" sub="preuves depuis Elastic" />
+    <Stage label="qwen25-dfir" sub="LLM affiné" />
+  </Lane>
+</Pipeline>
+
+## La plateforme
+
+<Gallery>
+  <Figure src="/work/dfir-platform/attack.webp" caption="Carte de couverture ATT&CK, allumée par les techniques détectées par les règles." />
+  <Figure src="/work/dfir-platform/assistant.webp" caption="L'assistant IA, avec les chasses Velociraptor et les postes comme sources de preuves." />
+  <Figure src="/work/dfir-platform/hunt-generator.webp" caption="Générateur de chasses VQL : décrivez une menace en langage naturel, obtenez une requête Velociraptor." />
+  <Figure src="/work/dfir-platform/health.webp" caption="État des sept services : Elastic, Kibana, Logstash, Velociraptor, l'API, le LLM et l'interface." />
+</Gallery>
+
+## Les tests
+
+Les attaques ont été lancées avec MITRE Caldera, une opération par technique, en chronométrant le délai avant l'apparition de chaque alerte.
+
+<Figure src="/work/dfir-platform/caldera.webp" caption="Opérations Caldera, une par technique ATT&CK émulée." />
+
+Le filtre d'injection a été testé sur un corpus de 25 prompts adversariaux, d'abord classificateur désactivé, puis activé. Voici la même injection par balise système XML dans les deux cas :
+
+<Figure src="/work/dfir-platform/injection-off.webp" caption="Classificateur désactivé : le modèle accepte la fausse instruction système et commence à écrire un reverse shell." />
+
+<Figure src="/work/dfir-platform/injection-on.webp" caption="Classificateur activé : le même prompt est arrêté avant d'atteindre le modèle." />
+
+## Résultats
+
+<Results />
