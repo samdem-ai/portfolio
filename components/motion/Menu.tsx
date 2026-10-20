@@ -81,7 +81,8 @@ export function Menu({
     <>
       {open && <div className="fixed inset-0 z-[55] bg-black/40" onClick={close} aria-hidden />}
 
-      <div className="no-print fixed right-5 top-5 z-[70] sm:right-8 sm:top-8">
+      {/* Click-through wrapper: while the button is scaled to 0 it must not block the header controls beneath it. */}
+      <div className="no-print pointer-events-none fixed right-5 top-5 z-[70] sm:right-8 sm:top-8">
         <Magnetic strength={0.3} className="block">
           <button
             ref={fab}
@@ -90,7 +91,7 @@ export function Menu({
             aria-expanded={open}
             aria-controls="site-menu"
             aria-label={open ? labels.close : labels.menu}
-            className={`grid h-16 w-16 place-items-center rounded-full shadow-lg transition-colors duration-300 sm:h-[4.5rem] sm:w-[4.5rem] ${
+            className={`pointer-events-auto grid h-16 w-16 place-items-center rounded-full shadow-lg transition-colors duration-300 sm:h-[4.5rem] sm:w-[4.5rem] ${
               open ? "bg-accent" : "bg-dark"
             }`}
           >
