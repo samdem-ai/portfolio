@@ -28,9 +28,9 @@ export function HeroPortrait({ alt }: { alt: string }) {
       src="/samy.svg"
       alt={alt}
       width={1220}
-      height={1222}
+      height={1170}
       fetchPriority="high"
-      className="pointer-events-none absolute bottom-0 left-1/2 z-[5] h-[52svh] w-auto max-w-none -translate-x-1/2 select-none md:h-[78svh]"
+      className="pointer-events-none absolute -bottom-[1.5%] left-1/2 z-[5] h-[52svh] w-auto max-w-none -translate-x-1/2 select-none md:h-[78svh]"
     />
   );
 }

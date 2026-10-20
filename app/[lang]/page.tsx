@@ -58,8 +58,8 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           </div>
         </div>
         <h1 className="sr-only">Samy Debaili, {dict.hero.role1.toLowerCase()}</h1>
-        <div data-fade="0.1" className="relative z-0 pb-[4vh]">
-          <Marquee text="Samy Debaili" className="text-[clamp(5.5rem,17vw,15rem)] font-medium leading-[1.1] tracking-[-0.045em]" />
+        <div className="relative pb-[4vh]">
+          <Marquee text="Samy Debaili" outline className="text-[clamp(5.5rem,17vw,15rem)] font-medium leading-[1.1] tracking-[-0.045em]" />
         </div>
       </section>
 

@@ -371,6 +371,12 @@
   }
 }
 
+/* Outline-only text, used for the copy of the hero name that runs in front of the figure. */
+.text-outline {
+  color: transparent;
+  -webkit-text-stroke: 0.012em var(--dark);
+}
+
 /* Spinning globe in the location badge. */
 @keyframes spin {
   to {
