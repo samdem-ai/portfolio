@@ -25,6 +25,7 @@ export function HeroPortrait({ alt }: { alt: string }) {
     // eslint-disable-next-line @next/next/no-img-element -- static SVG illustration
     <img
       ref={ref}
+      id="hero-figure"
       src="/samy.svg"
       alt={alt}
       width={1220}

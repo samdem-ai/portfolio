@@ -20,6 +20,7 @@
 
   --accent: #e5484d;
   --on-accent: #ffffff;
+  --hero: #d33f43; /* home hero background */
   --addr: #8abeb7;
   color-scheme: light;
 }
@@ -78,6 +79,7 @@
   --color-rule: var(--rule);
   --color-accent: var(--accent);
   --color-on-accent: var(--on-accent);
+  --color-hero: var(--hero);
   --font-sans: var(--font-albert), "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
@@ -369,12 +371,6 @@
       padding: 0 0.5rem;
     }
   }
-}
-
-/* Outline-only text, used for the copy of the hero name that runs in front of the figure. */
-.text-outline {
-  color: transparent;
-  -webkit-text-stroke: 0.012em var(--dark);
 }
 
 /* Spinning globe in the location badge. */

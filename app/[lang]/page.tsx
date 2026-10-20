@@ -31,7 +31,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
   return (
     <>
       {/* Hero */}
-      <section className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-[#7d8183] text-on-dark">
+      <section className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-hero text-on-dark">
         <HeroPortrait alt={lang === "fr" ? "Illustration de Samy Debaili" : "Illustration of Samy Debaili"} />
         <div className="wrap relative z-10 flex flex-1 items-start pt-32 md:items-center md:pt-28">
           <div className="flex w-full flex-col gap-8 md:flex-row md:items-center md:justify-between">
@@ -59,7 +59,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         </div>
         <h1 className="sr-only">Samy Debaili, {dict.hero.role1.toLowerCase()}</h1>
         <div className="relative pb-[4vh]">
-          <Marquee text="Samy Debaili" outline className="text-[clamp(5.5rem,17vw,15rem)] font-medium leading-[1.1] tracking-[-0.045em]" />
+          <Marquee text="Samy Debaili" maskFrom="hero-figure" className="text-[clamp(5.5rem,17vw,15rem)] font-medium leading-[1.1] tracking-[-0.045em]" />
         </div>
       </section>
 

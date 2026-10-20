@@ -5,12 +5,39 @@ import { gsap, prefersReducedMotion, ScrollTrigger } from "@/lib/motion";
 
 /**
  * Endless horizontal name strip. Scrolling down pushes it left, scrolling up reverses it.
- * With `outline`, a second, outlined copy moves in lockstep on a higher layer, so the name
- * can pass behind something (the hero figure) and still read as an outline in front of it.
+ *
+ * With `maskFrom` (an <img> id), a second, dark copy runs in lockstep on top and is masked
+ * to that image's silhouette: the name stays white on the background and turns dark exactly
+ * where it crosses the figure.
  */
-export function Marquee({ text, className = "", outline = false }: { text: string; className?: string; outline?: boolean }) {
+export function Marquee({ text, className = "", maskFrom }: { text: string; className?: string; maskFrom?: string }) {
   const back = useRef<HTMLDivElement>(null);
   const front = useRef<HTMLDivElement>(null);
+  const frontLayer = useRef<HTMLDivElement>(null);
+
+  // Keep the mask glued to the figure (it moves with parallax and on resize).
+  useEffect(() => {
+    if (!maskFrom) return;
+    const layer = frontLayer.current!;
+    const syncMask = () => {
+      const img = document.getElementById(maskFrom);
+      if (!img) return;
+      const a = img.getBoundingClientRect();
+      const b = layer.getBoundingClientRect();
+      const pos = `${a.left - b.left}px ${a.top - b.top}px`;
+      const size = `${a.width}px ${a.height}px`;
+      layer.style.maskPosition = layer.style.webkitMaskPosition = pos;
+      layer.style.maskSize = layer.style.webkitMaskSize = size;
+      layer.style.visibility = "visible";
+    };
+    syncMask();
+    gsap.ticker.add(syncMask);
+    window.addEventListener("resize", syncMask);
+    return () => {
+      gsap.ticker.remove(syncMask);
+      window.removeEventListener("resize", syncMask);
+    };
+  }, [maskFrom]);
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -52,9 +79,21 @@ export function Marquee({ text, className = "", outline = false }: { text: strin
       <div data-fade="0.1" className="relative z-0 overflow-hidden">
         {strip(back)}
       </div>
-      {outline && (
-        <div data-fade="0.1" className="text-outline absolute inset-0 z-10 overflow-hidden">
-          {strip(front)}
+      {maskFrom && (
+        <div data-fade="0.1" className="absolute inset-0 z-10">
+          <div
+            ref={frontLayer}
+            className="h-full overflow-hidden text-dark"
+            style={{
+              visibility: "hidden",
+              maskImage: "url(/samy.svg)",
+              WebkitMaskImage: "url(/samy.svg)",
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+            }}
+          >
+            {strip(front)}
+          </div>
         </div>
       )}
     </div>
