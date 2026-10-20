@@ -34,6 +34,7 @@ const en = {
   hero: {
     located: "Located in",
     place: "Algiers, Algeria",
+    badge: ["Located", "in Algiers,", "Algeria"],
     role1: "Cybersecurity engineer",
     role2: "& reverse engineer",
   },
@@ -171,6 +172,7 @@ const fr: Dictionary = {
   hero: {
     located: "Basé à",
     place: "Alger, Algérie",
+    badge: ["Basé", "à Alger,", "Algérie"],
     role1: "Ingénieur en cybersécurité",
     role2: "& rétro-ingénieur",
   },

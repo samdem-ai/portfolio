@@ -14,13 +14,13 @@
   --canvas: #ffffff;
   --panel: #f1f1f0;
   --ink: #1c1d20;
-  --ink-2: #45464b;
+  --ink-2: #45464b; 
   --muted: #76777c;
   --rule: rgb(28 29 32 / 0.14);
 
   --accent: #e5484d;
   --on-accent: #ffffff;
-  --hero: #5b7896; /* home hero background */
+  --hero: #3a3d42; /* home hero background */
   --addr: #8abeb7;
   color-scheme: light;
 }

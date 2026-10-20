@@ -33,18 +33,11 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
       {/* Hero */}
       <section className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden bg-hero text-on-dark">
         <HeroPortrait alt={lang === "fr" ? "Illustration de Samy Debaili" : "Illustration of Samy Debaili"} />
+        <LocationBadge lines={dict.hero.badge} className="absolute left-0 top-[36%] z-10 hidden -translate-y-1/2 md:flex" />
         <div className="wrap relative z-10 flex flex-1 items-start pt-32 md:items-center md:pt-28">
-          <div className="flex w-full flex-col gap-8 md:flex-row md:items-center md:justify-between">
-            <div data-fade="0.2" className="-ml-[clamp(1.25rem,5vw,5rem)] flex w-max items-center gap-6 rounded-r-full bg-dark-2 py-4 pl-[clamp(1.25rem,5vw,5rem)] pr-4">
-              <p className="text-[0.95rem] leading-tight">
-                {dict.hero.located}
-                <br />
-                {dict.hero.place}
-              </p>
-              <span className="grid h-16 w-16 place-items-center rounded-full bg-on-dark/10" aria-hidden>
-                <Globe className="text-[0.9rem]" />
-              </span>
-            </div>
+          <div className="flex w-full flex-col gap-8 md:flex-row md:items-center md:justify-end">
+            {/* Mobile: in the flow, flush with the left edge. Desktop: the absolute copy below. */}
+            <LocationBadge lines={dict.hero.badge} className="-ml-[clamp(1.25rem,5vw,5rem)] md:hidden" />
             <div data-fade="0.35" className="md:mr-[6%]">
               <svg viewBox="0 0 24 24" className="mb-6 h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
                 <path d="M5 5l14 14M19 8v11H8" />
@@ -108,5 +101,26 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <SlidingRows rows={[tools, specimens.map((s) => s.name)]} />
       </section>
     </>
+  );
+}
+
+/** "Located in" badge stuck to the left edge of the screen, globe sitting in a cut-out circle. */
+function LocationBadge({ lines, className = "" }: { lines: string[]; className?: string }) {
+  return (
+    <div
+      data-fade="0.2"
+      className={`flex w-max items-center gap-7 rounded-r-full bg-dark-2 py-3 pl-[clamp(1.25rem,5vw,5rem)] pr-3 md:gap-10 md:py-4 md:pr-4 ${className}`}
+    >
+      <p className="text-[0.9rem] leading-[1.25] md:text-[1rem]">
+        {lines.map((l) => (
+          <span key={l} className="block">
+            {l}
+          </span>
+        ))}
+      </p>
+      <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-hero md:h-20 md:w-20" aria-hidden>
+        <Globe className="text-[0.8rem] md:text-[0.95rem]" />
+      </span>
+    </div>
   );
 }
