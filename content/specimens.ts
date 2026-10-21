@@ -8,6 +8,8 @@ export type Specimen = {
   iocs: string[];
   /** My ATT&CK mapping of the behaviour described in the report. */
   attack: { id: string; name: string }[];
+  /** Slug of the content/work post that covers this sample, if any. */
+  writeup?: string;
 };
 
 export const specimens: Specimen[] = [
@@ -142,6 +144,7 @@ export const specimens: Specimen[] = [
   {
     name: "Stager.PastePlugin.PS1",
     alias: "worker?=7341210743/ai-plugin",
+    writeup: "youtube-paste-stealer",
     type: "Stager",
     behaviour: {
       en: "Served only to a PowerShell User-Agent. Adds Defender exclusions, turns SmartScreen off, drops cmmd.exe, then wipes the clipboard and PSReadLine history.",
@@ -157,6 +160,7 @@ export const specimens: Specimen[] = [
   {
     name: "Spy.SterlingSignal.Win64",
     alias: "cmmd.exe",
+    writeup: "youtube-paste-stealer",
     type: "Spy",
     behaviour: {
       en: "Garbled Go binary that decrypts its API table at runtime: hidden desktop, GDI screen capture, host and keyboard-layout profiling.",
@@ -172,6 +176,7 @@ export const specimens: Specimen[] = [
   {
     name: "Stealer.Mrdor.macOS",
     alias: "p7tp4i95c5x1fs96",
+    writeup: "youtube-paste-stealer",
     type: "Stealer",
     behaviour: {
       en: "AMOS-like stealer: fake System Settings password prompt, keychain, browsers, 203 wallet extensions, trojanised Ledger and Trezor apps, LaunchAgent persistence.",

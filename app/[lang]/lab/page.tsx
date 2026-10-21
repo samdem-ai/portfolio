@@ -20,6 +20,12 @@ export default async function LabPage({ params }: PageProps<"/[lang]/lab">) {
   if (!hasLocale(lang)) notFound();
   const dict = getDictionary(lang);
   const lab = getPost("malware-lab", lang);
+  const writeups = new Map(
+    specimens.flatMap((s) => {
+      const page = s.writeup && getPost(s.writeup, lang)?.page;
+      return page ? [[s.writeup!, page] as const] : [];
+    }),
+  );
 
   return (
     <>
@@ -82,6 +88,11 @@ export default async function LabPage({ params }: PageProps<"/[lang]/lab">) {
                     ))}
                   </ul>
                 </div>
+                {writeups.get(s.writeup ?? "") && (
+                  <Link href={writeups.get(s.writeup!)!} className="ulink inline-block text-sm">
+                    {dict.lab.writeup} →
+                  </Link>
+                )}
               </div>
             </li>
           ))}

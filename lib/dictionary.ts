@@ -71,7 +71,7 @@ const en = {
       },
       {
         title: "Malware analysis",
-        body: "Static and dynamic triage, Ghidra and IDA, x86/x64. Nine samples analysed and documented, from droppers to WannaCry, with IOCs and reports.",
+        body: "Static and dynamic triage, Ghidra and IDA, x86/x64, Windows and macOS. Twelve samples analysed and documented, from droppers to WannaCry to a macOS wallet stealer, with IOCs and reports.",
       },
       {
         title: "Audit & hardening",
@@ -115,6 +115,7 @@ const en = {
     attack: "ATT&CK (my mapping)",
     full: "Full reports and IOC catalog",
     toolkit: "The toolkit",
+    writeup: "Read the investigation",
   },
   uses: {
     title: "Uses",
@@ -209,7 +210,7 @@ const fr: Dictionary = {
       },
       {
         title: "Analyse de malwares",
-        body: "Triage statique et dynamique, Ghidra et IDA, x86/x64. Neuf échantillons analysés et documentés, du dropper à WannaCry, avec IOC et rapports.",
+        body: "Triage statique et dynamique, Ghidra et IDA, x86/x64, Windows et macOS. Douze échantillons analysés et documentés, du dropper à WannaCry en passant par un stealer de portefeuilles macOS, avec IOC et rapports.",
       },
       {
         title: "Audit et durcissement",
@@ -253,6 +254,7 @@ const fr: Dictionary = {
     attack: "ATT&CK (ma correspondance)",
     full: "Rapports complets et catalogue d'IOC",
     toolkit: "L'outil",
+    writeup: "Lire l'enquête",
   },
   uses: {
     title: "Outils",
