@@ -163,15 +163,15 @@ export const specimens: Specimen[] = [
     writeup: "youtube-paste-stealer",
     type: "Loader",
     behaviour: {
-      en: "Garbled Go loader + exfil. Beacons POST /exports (spoofed github.com host) on TCP 5930/5621: registers (type=ping), uploads an encrypted host survey (type=0), gets commands hidden in a fake 405. Stream-cipher C2, hidden-desktop capture capability. VT 37/67, trojan/downloader.",
-      fr: "Loader + exfil Go garble. Balise POST /exports (host github.com usurpé) sur TCP 5930/5621 : s'enregistre (type=ping), envoie un relevé chiffré (type=0), reçoit des commandes cachées dans un faux 405. C2 à chiffrement de flux, capacité de capture bureau caché. VT 37/67, trojan/downloader.",
+      en: "Garbled Go loader + exfil, from a 'free Claude Code' YouTube lure. Uploads a ChaCha20-encrypted Info.yml host survey to 186.194.50[.]58 (spoofed github.com host, TCP 5930/5621); C2 replies JSON {ping,load} — load empty for a sandbox. Ephemeral per-session key, debugger self-relaunch. VT 37/67, trojan/downloader.",
+      fr: "Loader + exfil Go garble, depuis un leurre YouTube « Claude Code gratuit ». Envoie un relevé Info.yml chiffré ChaCha20 vers 186.194.50[.]58 (host github.com usurpé, TCP 5930/5621) ; le C2 répond JSON {ping,load} — load vide pour une sandbox. Clé éphémère par session, auto-relance anti-debug. VT 37/67, trojan/downloader.",
     },
-    iocs: ["sylpxe[.]click", "netulse[.]sbs", "TCP 5930/5621", "SterlingSignalVentures"],
+    iocs: ["sylpxe[.]click", "netulse[.]sbs", "186.194.50[.]58", "ChaCha20 (expand 32-byte k)"],
     attack: [
       { id: "T1027.013", name: "Encrypted/Encoded File" },
-      { id: "T1106", name: "Native API" },
-      { id: "T1571", name: "Non-Standard Port" },
-      { id: "T1071.001", name: "Web Protocols" },
+      { id: "T1573", name: "Encrypted Channel" },
+      { id: "T1622", name: "Debugger Evasion" },
+      { id: "T1041", name: "Exfiltration Over C2 Channel" },
     ],
   },
   {

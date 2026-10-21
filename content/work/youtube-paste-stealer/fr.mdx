@@ -1,29 +1,43 @@
 ---
-title: D'une vidéo YouTube à deux stealers
+title: '« Claude Code gratuit », en fait un malware'
 kind: security
 year: "2026"
 order: 5
 status: Investigation
-summary: Une vidéo YouTube à 45 000 vues renvoyait vers un paste avec une commande par système. J'ai suivi les deux chaînes jusqu'au bout. Côté macOS, un stealer de portefeuilles avec quatre domaines C2. Côté Windows, un binaire Go passé à garble qui cache ses appels d'API.
-why: Les leurres « copiez-collez cette commande » sont partout sur YouTube, et la plupart des analyses s'arrêtent au premier script. Je voulais voir ce qui arrive vraiment sur la machine.
-note: Tout ce qui suit relève de l'analyse statique ou de l'émulation. Aucune des deux charges n'a été exécutée, et je n'ai pas contacté les serveurs C2 pendant l'analyse.
-stack: [Ghidra 12.1, REA, Unicorn, Capstone, LIEF, Python]
+summary: Une chaîne YouTube à des dizaines de milliers de vues promet Claude Code, ChatGPT Plus et plus, gratuitement. L'« installeur » qu'elle donne est un leurre copier-coller qui dépose un loader Go garble sur Windows et un stealer de portefeuilles sur macOS. J'ai rétro-conçu les deux de bout en bout — jusqu'à la clé ChaCha20 et la commande du C2.
+why: Ces vidéos « obtiens l'outil IA payant gratuitement » cumulent les vues, survivent aux signalements de masse, et les commentaires qui alertent les gens sont supprimés. Je voulais prouver, octet par octet, ce qui arrive vraiment sur la machine quand on colle la commande.
+note: L'analyse dynamique s'est faite dans une VM isolée, snapshottée, LAN bloqué. Le trafic C2 live a été capturé lors d'une seule détonation contrôlée et analysé hors ligne ; je n'ai jamais recontacté les serveurs.
+cover: /work/youtube-paste-stealer/chacha20-dump.webp
+stack: [Ghidra 12.1, REA, Unicorn, x64dbg, ScyllaHide, Capstone, LIEF, Python]
 results:
   - value: "2"
-    label: chaînes d'infection, une par système
-  - value: "4"
-    label: domaines C2 décodés depuis la config macOS
+    label: chaînes d'infection depuis un seul paste, une par système
+  - value: "ChaCha20"
+    label: chiffrement d'exfil, clé + nonce récupérés en mémoire
   - value: "203"
-    label: identifiants d'extensions ciblés, surtout des portefeuilles
+    label: extensions ciblées par le stealer macOS, surtout des portefeuilles
   - value: "39"
     label: API Windows déchiffrées en émulant le déchiffreur
-  - value: "3"
-    label: sources concordantes sur le loader (mon sandbox, ANY.RUN, VirusTotal 37/67)
+  - value: "0"
+    label: charges de seconde étape renvoyées par le C2 (liste load vide)
 ---
+
+## Une chaîne qui vend l'IA « gratuite »
+
+Le leurre est une chaîne YouTube (`@bumtastik`) qui enchaîne les vidéos promettant les outils IA payants gratuitement : **« Claude Code Opus 5.5 FREE »**, **« ChatGPT Plus for FREE (GPT-6 Astra) »**, **« Jailbreak Claude : UNCENSORED »**, Veo 3, ElevenLabs — tous en « `/free` », tous « **NO CARD** ». Le présentateur est un avatar généré par IA, voix IA comprise, et les vidéos marchent : des dizaines de milliers de vues chacune (l'une à 38 K, une autre à 21 K), de nouvelles tous les quelques jours.
+
+Chaque vidéo mène à la même chose : un lien en description vers un paste avec une commande pour « activer » l'accès gratuit. Ce qu'elle active, c'est un malware.
+
+Deux choses aggravent le cas :
+
+- **Les vidéos survivent aux signalements.** Signalées à répétition, elles restent en ligne, continuent d'être recommandées et d'accumuler les vues.
+- **Les avertissements sont réduits au silence.** Les commentaires qui disent « c'est un virus, ne le lancez pas » sont supprimés, pour que la section commentaires paraisse propre à la victime suivante.
+
+La couche sociale est donc travaillée elle aussi — pas seulement la charge. Si vous arrivez ici depuis l'une de ces vidéos : **ne collez pas la commande.** La suite décrit ce qu'elle fait.
 
 ## Le point de départ
 
-Une vidéo YouTube d'environ 45 000 vues (ID `3FyBGgkkjSw`), plus plusieurs autres vidéos qui mènent au même lien. La description renvoie vers un paste Pastebin (`UthsJdis`) qui propose une commande par plateforme, présentée comme un « installeur ».
+La vidéo d'où je suis parti faisait environ 45 000 vues (ID `3FyBGgkkjSw`) ; plusieurs autres mènent au même lien. La description renvoie vers un paste Pastebin (`UthsJdis`) qui propose une commande par plateforme, présentée comme un « installeur ».
 
 | Système | Ce que le paste demande de lancer |
 | --- | --- |
@@ -125,17 +139,56 @@ La supposition statique était donc à moitié juste : les API de capture sont u
 
 ### Face à un vrai C2 : il exfiltre aussi
 
-Le sinkhole ne renvoie rien, donc le loader se contente de baliser. Capturé contre le **vrai** serveur (un C2 `nginx`, pas mon sinkhole), l'échange complet révèle un loader *et* un stealer :
+Le sinkhole ne renvoie rien, donc le loader se contente de baliser. Capturé contre le **vrai** serveur (un C2 `nginx` à `186.194.50[.]58`, pas mon sinkhole), l'échange complet révèle un loader *et* un stealer :
 
 | étape | requête | sens |
 | --- | --- | --- |
 | enregistrement | `POST /exports` · `access_token=&type=ping` | premier contact, pas encore de jeton |
-| exfil | `POST /exports` · `multipart/form-data`, `type=0`, `file="data"` = **blob chiffré de 1399 octets** | envoie un relevé de l'hôte |
-| commande | réponse `HTTP/1.1 405 Not Allowed` (nginx) avec un **corps chiffré de 62 octets** | le 405 est un statut leurre ; la vraie tâche est dans le corps |
+| exfil | `POST /exports` · `multipart/form-data`, `type=0`, `file="data"` = blob chiffré | envoie un relevé de l'hôte |
+| commande | réponse `HTTP/1.1 405 Not Allowed` (nginx) avec un corps chiffré | le 405 est un statut leurre ; la vraie tâche est dans le corps |
 
-La reconnaissance registre n'est donc pas gratuite : le relevé qu'il construit est chiffré et expédié. L'envoi et la réponse sont protégés par un **chiffrement de flux maison**, pas le XOR du déchiffreur de chaînes : le binaire n'a ni `crypto/aes` ni `crypto/rc4`, la longueur du chiffré (1399) n'est pas un multiple de 16 (donc aucun mode par bloc), et son indice de coïncidence vaut ~1,008 (aléatoire) sans période de clé répétée. Un seul chiffré et aucune clé : je ne peux pas le lire — il faudrait la clé extraite du binaire garble ou relevée à l'exécution.
+L'envoi et la réponse sont protégés par un **chiffrement de flux maison** — pas le XOR du déchiffreur de chaînes. Le binaire n'a ni `crypto/aes` ni `crypto/rc4`, la longueur du chiffré n'est pas un multiple de 16 (aucun mode par bloc) et son indice de coïncidence vaut ~1,0 (aléatoire). En statique je n'ai pas pu isoler la clé : le chiffrement est inliné dans `main.main` (13 000 lignes), noyé dans les fonctions leurres de garble, et la décompilation complète sature la mémoire.
 
-Je n'ai **pas** contacté le C2 moi-même ; les corps requête/réponse live ont été capturés lors d'une détonation contrôlée et je les ai analysés ici. La seconde étape (ce qu'une vraie commande téléchargerait) reste invisible — c'est la limite honnête sans la clé ni un serveur coopératif.
+### Casser le chiffrement : c'est ChaCha20
+
+Alors je suis passé en dynamique. Le loader détecte les débogueurs et se relance via `NtCreateUserProcess` pour semer un traceur ; je l'ai donc lancé sous **x64dbg + ScyllaHide** (anti-anti-debug), forcé l'enfant à démarrer suspendu, et posé un point d'arrêt matériel sur le tampon sortant. Ça m'a déposé en plein dans le chiffrement — et son bloc de setup le trahit :
+
+<Figure src="/work/youtube-paste-stealer/chacha20-dump.webp" caption="L'état du chiffrement en mémoire : la constante sigma « expand 32-byte k » avec la clé 256 bits à côté, plus la balise en clair (tag/exp/hwid) et la frontière multipart — dump x64dbg." alt="Dump mémoire x64dbg montrant la constante ChaCha20 expand 32-byte k, les octets de clé, et la balise déchiffrée tag=…&exp=…&hwid=…." />
+
+`expand 32-byte k` est la sigma Salsa/ChaCha pour une clé 256 bits — le « chiffrement de flux maison » est **ChaCha20**. La clé de 32 octets est juste à côté, avec un nonce de 8 octets (ChaCha20 original de DJB, nonce 64 bits, compteur 0). Avec `clé = 941d3d09…fc6c1753` et `nonce = 8254a0e595f3d401` tirés de la mémoire, l'upload capturé se déchiffre proprement :
+
+```yaml
+# Info.yml  (le « relevé » type=0 que le loader envoie)
+build:
+  date: 08.10.2026
+  tag: {tag}
+  path: "C:\analysis\cmmd.exe"
+  elevated: true
+  ip-address: {ip}
+  os: { version: Windows 11 Pro (10.0.26200) x64 }
+  time-zone: UTC-7
+  language: en-US
+  computer-name: WIN-RJ9SUM77SCQ
+  anti-virus: [ Defender … active ]
+  hardware:
+    gpu: [ 'Red Hat VirtIO GPU DOD controller' ]   # ← il voit la VM
+    display: 1280x800
+  software: [ 7-Zip 24.08, Python 3.12.10, … ]      # via les clés de désinstallation du registre
+```
+
+L'upload `type=0` est donc un **profil complet de l'hôte** : build OS, élévation, locale, fuseau, nom de machine, antivirus, GPU, affichage et la liste des logiciels installés. `{tag}`/`{ip}` sont des champs de gabarit côté serveur. La clé est **éphémère** : une clé ChaCha20 fraîche par session, posée sur la pile, donc la clé d'une exécution ne déchiffre pas le trafic d'une autre.
+
+### La réponse du C2
+
+La réponse est chiffrée avec une clé distincte (les sens bot→C2 et C2→bot utilisent des clés différentes), alors j'ai posé un point d'arrêt là où le loader déchiffre le corps du 405 et lu le clair directement dans `rdi` :
+
+```json
+{"ping":-1,"load":[]}
+```
+
+C'est tout l'intérêt d'un loader — et le tableau `load` est **vide**. Le C2 n'a renvoyé aucune seconde étape. `load` est la liste des charges à télécharger et exécuter ; pour notre hôte, rien n'est revenu, très probablement parce que le relevé qu'il venait de recevoir hurle « sandbox » (`VirtIO GPU`, un chemin `C:\analysis`, une liste de logiciels minimale). Les API de bureau caché et de capture d'écran sont une vraie capacité que l'opérateur active en mettant une entrée dans `load` — il ne l'a juste pas fait, pour nous.
+
+La boucle est bouclée de bout en bout : vidéo → paste → stager filtré par UA → loader Go garble → relevé d'hôte chiffré ChaCha20 → tâche du C2. La seule chose qu'on n'a jamais vue est un `load` rempli — contrôlé par l'opérateur, et vide pour une machine qui ressemble à un labo.
 
 ## Charge macOS : un stealer de portefeuilles, config à un XOR près
 
@@ -174,15 +227,16 @@ Cela correspond à ce qui a été publié sur la famille AMOS / Atomic Stealer :
 
 | Type | Valeur |
 | --- | --- |
-| Leurre | YouTube `3FyBGgkkjSw`, Pastebin `UthsJdis` |
+| Leurre | Chaîne YouTube `@bumtastik`, vidéo `3FyBGgkkjSw`, Pastebin `UthsJdis` |
 | URL | `hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin` |
 | URL | `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin` |
 | URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
 | C2 (macOS) | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
-| C2 (loader Windows) | `sylpxe[.]click`, `netulse[.]sbs` sur TCP 5930 & 5621 |
+| C2 (loader Windows) | `sylpxe[.]click`, `netulse[.]sbs` → `186.194.50[.]58`, TCP 5930 & 5621 |
 | Requête C2 | `POST /exports`, `POST /contacts`, `Host: github.com` (usurpé) |
-| Protocole C2 | `type=ping` enregistrement · `type=0` multipart `file="data"` = relevé chiffré · réponse = faux `405` à corps chiffré |
-| Crypto C2 | chiffrement de flux maison (longueur 1399 non alignée sur 16, IC ≈ 1,0) ; ni `crypto/aes` ni `rc4` dans le binaire |
+| Protocole C2 | `type=ping` enregistrement · `type=0` multipart `file="data"` = relevé `Info.yml` chiffré · réponse = faux `405`, corps = JSON `{"ping","load"}` |
+| Crypto C2 | **ChaCha20**, clé 256 bits **éphémère par session**, nonce 8 octets, compteur 0 (`expand 32-byte k`) |
+| Mutex | `\BaseNamedObjects\<tag>` (ex. `5a4378fb90db39f09c7b18d1f314e645`) |
 | UA (filtre stager) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` |
 | UA (balise loader) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36` |
 | VT | 37/67, `trojan.remus/usbljb26`, catégories trojan/downloader |
@@ -208,7 +262,8 @@ Cela correspond à ce qui a été publié sur la famille AMOS / Atomic Stealer :
 | T1047 | Windows Management Instrumentation | le loader lance `WmiPrvSE.exe` |
 | T1082 / T1012 | System Information Discovery / Query Registry | 2929 `RegOpenKey` de recon |
 | T1041 | Exfiltration Over C2 Channel | upload multipart `type=0` du relevé chiffré |
-| T1132.001 | Standard Data Encoding | chiffrement de flux maison sur le corps de balise |
+| T1573 | Encrypted Channel | **ChaCha20** sur la balise, clé éphémère par session |
+| T1622 / T1497 | Debugger Evasion / Virtualization-Sandbox Evasion | auto-relance via `NtCreateUserProcess`, le relevé signale la VM |
 | T1056.002 | GUI Input Capture | fausse boîte « System Settings » |
 | T1555.001 | Keychain | `login.keychain-db`, clés Safe Storage |
 | T1539 | Steal Web Session Cookie | cookies des navigateurs |

@@ -1,29 +1,43 @@
 ---
-title: From a YouTube video to two stealers
+title: '"Free Claude Code" to malware'
 kind: security
 year: "2026"
 order: 5
 status: Investigation
-summary: A YouTube video with 45k views pointed to a paste that served one command per OS. I followed both chains to the end. The macOS one is a wallet stealer with four C2 domains. The Windows one is a garbled Go binary that hides its API calls.
-why: Paste-a-command lures are now everywhere on YouTube, and most write-ups stop at the first script. I wanted to see what actually lands on the machine.
-note: Everything below is static analysis or emulation. Neither payload was ever executed, and I didn't contact the C2 servers during the analysis.
-stack: [Ghidra 12.1, REA, Unicorn, Capstone, LIEF, Python]
+summary: A YouTube channel with tens of thousands of views promises free Claude Code, ChatGPT Plus and more. The "installer" it hands you is a paste-a-command lure that drops a garbled Go loader on Windows and a wallet stealer on macOS. I reversed both end-to-end — down to the ChaCha20 key and the C2's command.
+why: These "get the paid AI tool for free" videos rack up views, survive mass reporting, and the comments warning people get deleted. I wanted to prove, byte-by-byte, what actually lands on your machine when you paste the command.
+note: Dynamic analysis ran in an isolated, snapshotted VM with its LAN blocked. Live C2 traffic was captured during one controlled detonation and analysed offline; I never re-contacted the servers.
+cover: /work/youtube-paste-stealer/chacha20-dump.webp
+stack: [Ghidra 12.1, REA, Unicorn, x64dbg, ScyllaHide, Capstone, LIEF, Python]
 results:
   - value: "2"
-    label: infection chains, one per OS
-  - value: "4"
-    label: C2 domains decoded from the macOS config
+    label: infection chains from one paste, one per OS
+  - value: "ChaCha20"
+    label: exfil cipher, key + nonce recovered from memory
   - value: "203"
-    label: browser-extension IDs targeted, mostly wallets
+    label: browser-extension IDs the macOS stealer targets, mostly wallets
   - value: "39"
     label: Windows APIs decrypted by emulating the string decryptor
-  - value: "3"
-    label: sources agreeing it's a loader (my sandbox, ANY.RUN, VirusTotal 37/67)
+  - value: "0"
+    label: stage-2 payloads the C2 returned (empty load list)
 ---
+
+## A channel that sells "free" AI tools
+
+The lure is a YouTube channel (`@bumtastik`) that pumps out one video after another promising the paid AI tools for free: **"Claude Code Opus 5.5 FREE"**, **"ChatGPT Plus for FREE (GPT-6 Astra)"**, **"Jailbreak Claude: UNCENSORED"**, Veo 3, ElevenLabs — all "`/free`", all "**NO CARD**". The presenter is an AI-generated avatar with an AI voice, and the videos pull real traction: tens of thousands of views each (one at 38K, another 21K), fresh uploads every few days.
+
+Every video funnels to the same thing: a description link to a paste with a command to "activate" the free access. What it actually activates is malware.
+
+Two things make this worse than a one-off scam:
+
+- **The videos survive reporting.** They've been reported repeatedly and stay up, keep getting recommended, and keep collecting views.
+- **The warnings get silenced.** Comments telling people "this is a virus, don't run it" are deleted, so the comment section looks clean to the next victim.
+
+So the social layer is engineered too — not just the payload. If you landed here from one of those videos: **don't paste the command.** The rest of this write-up is what it does once you do.
 
 ## How it started
 
-A YouTube video with about 45,000 views (ID `3FyBGgkkjSw`), plus several other videos pointing to the same link. The description sends you to a Pastebin paste (`UthsJdis`) that offers one command per platform, presented as an "installer".
+The video I started from had about 45,000 views (ID `3FyBGgkkjSw`); several others point to the same link. The description sends you to a Pastebin paste (`UthsJdis`) that offers one command per platform, presented as an "installer".
 
 | OS | What the paste tells you to run |
 | --- | --- |
@@ -125,17 +139,56 @@ So the earlier static guess was half right: the capture APIs are real capability
 
 ### Against a live C2: it also exfiltrates
 
-The sinkhole returns nothing, so the loader just pings. Captured against the **real** server (an `nginx` C2, not my sink), the full exchange shows a loader *and* a stealer:
+The sinkhole returns nothing, so the loader just pings. Captured against the **real** server (an `nginx` C2 at `186.194.50[.]58`, not my sink), the full exchange shows a loader *and* a stealer:
 
 | step | request | meaning |
 | --- | --- | --- |
 | register | `POST /exports` · `access_token=&type=ping` | first contact, no token yet |
-| exfil | `POST /exports` · `multipart/form-data`, `type=0`, `file="data"` = **1399-byte encrypted blob** | uploads a host survey |
-| command | reply `HTTP/1.1 405 Not Allowed` (nginx) with a **62-byte encrypted body** | the 405 is a decoy status; the real task rides in the body |
+| exfil | `POST /exports` · `multipart/form-data`, `type=0`, `file="data"` = encrypted blob | uploads a host survey |
+| command | reply `HTTP/1.1 405 Not Allowed` (nginx) with an encrypted body | the 405 is a decoy status; the real task rides in the body |
 
-So the registry recon isn't idle curiosity — the survey it builds is encrypted and shipped out. Both the upload and the response are protected with a **custom stream cipher**, not the string decryptor's XOR: the binary has no `crypto/aes` or `crypto/rc4` routines, the ciphertext length (1399) isn't a 16-byte multiple so it's no block mode, and its index of coincidence sits at ~1.008 (random) with no repeating-key period. One ciphertext and no key means I can't read it — recovering plaintext needs the key pulled from the garbled binary or lifted at runtime.
+Both the upload and the reply are encrypted with a **custom stream cipher** — not the string decryptor's XOR. The binary has no `crypto/aes` or `crypto/rc4` routines, the ciphertext length isn't a 16-byte multiple so it's no block mode, and its index of coincidence sits at ~1.0 (random). Statically I couldn't pin the key: the cipher is inlined in the 13,000-line `main.main`, buried in garble decoy functions, and the full decompile runs out of memory.
 
-I did **not** contact the C2 myself; the live request/response bodies were captured during a controlled detonation and I analysed them here. Stage two (what a non-decoy command would download) is still unseen — that's the honest limit without the key or a cooperating server.
+### Cracking the crypto: it's ChaCha20
+
+So I went dynamic. The loader detects debuggers and re-launches itself with `NtCreateUserProcess` to shake off a tracer, so I ran it under **x64dbg + ScyllaHide** (anti-anti-debug), forced the child to start suspended, and set a hardware breakpoint on the outbound buffer. That dropped me straight into the cipher — and its setup block gives it away:
+
+<Figure src="/work/youtube-paste-stealer/chacha20-dump.webp" caption="The cipher's state in memory: the sigma constant 'expand 32-byte k' with the 256-bit key beside it, plus the plaintext beacon (tag/exp/hwid) and the multipart boundary — x64dbg dump." alt="x64dbg memory dump showing the ChaCha20 constant expand 32-byte k, the key bytes, and the decrypted tag=…&exp=…&hwid=… beacon." />
+
+`expand 32-byte k` is the Salsa/ChaCha sigma for a 256-bit key — the "custom stream cipher" is **ChaCha20**. The 32-byte key sits right next to it, with an 8-byte nonce (original DJB ChaCha20, 64-bit nonce, counter 0). With `key = 941d3d09…fc6c1753` and `nonce = 8254a0e595f3d401` pulled from memory, the captured upload decrypts cleanly:
+
+```yaml
+# Info.yml  (the type=0 "survey" the loader uploads)
+build:
+  date: 08.10.2026
+  tag: {tag}
+  path: "C:\analysis\cmmd.exe"
+  elevated: true
+  ip-address: {ip}
+  os: { version: Windows 11 Pro (10.0.26200) x64 }
+  time-zone: UTC-7
+  language: en-US
+  computer-name: WIN-RJ9SUM77SCQ
+  anti-virus: [ Defender … active ]
+  hardware:
+    gpu: [ 'Red Hat VirtIO GPU DOD controller' ]   # ← it sees the VM
+    display: 1280x800
+  software: [ 7-Zip 24.08, Python 3.12.10, … ]      # from the registry uninstall keys
+```
+
+So the `type=0` upload is a **full host profile** — OS build, elevation, locale, timezone, machine name, installed AV, GPU, display, and the installed-software list. The `{tag}`/`{ip}` are server-side template fields. The key is **ephemeral**: a fresh ChaCha20 key per session, sitting on the stack, so a key from one run can't decrypt another run's traffic.
+
+### The C2's answer
+
+The reply is keyed separately (the bot→C2 and C2→bot directions use different keys), so I breakpointed where the loader decrypts the 405 body and read the plaintext straight out of `rdi`:
+
+```json
+{"ping":-1,"load":[]}
+```
+
+That's the whole point of a loader — and the `load` array is **empty**. The C2 returned no second stage. `load` is the list of payloads to fetch and run; for our host it came back with nothing, most likely because the survey it just received screams sandbox (`VirtIO GPU`, a `C:\analysis` path, a bare software list). The hidden-desktop and screen-capture APIs are real capability the operator can switch on by putting an entry in `load` — they just didn't, for us.
+
+That closes the loop end to end: video → paste → UA-gated stager → garbled Go loader → ChaCha20-encrypted host survey → C2 tasking. The only thing we never saw is a populated `load` — operator-controlled, and empty for a machine that looks like a lab.
 
 ## macOS payload: a wallet stealer with its config in the clear (after one XOR)
 
@@ -174,15 +227,16 @@ This matches what has been publicly reported about the AMOS / Atomic-stealer fam
 
 | Type | Value |
 | --- | --- |
-| Lure | YouTube `3FyBGgkkjSw`, Pastebin `UthsJdis` |
+| Lure | YouTube channel `@bumtastik`, video `3FyBGgkkjSw`, Pastebin `UthsJdis` |
 | URL | `hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin` |
 | URL | `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin` |
 | URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
 | C2 (macOS) | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
-| C2 (Windows loader) | `sylpxe[.]click`, `netulse[.]sbs` over TCP 5930 & 5621 |
+| C2 (Windows loader) | `sylpxe[.]click`, `netulse[.]sbs` → `186.194.50[.]58`, TCP 5930 & 5621 |
 | C2 request | `POST /exports`, `POST /contacts`, `Host: github.com` (spoofed) |
-| C2 protocol | `type=ping` register · `type=0` multipart `file="data"` = encrypted survey · reply = fake `405` with encrypted body |
-| C2 crypto | custom stream cipher (len 1399 not 16-aligned, IC ≈ 1.0); no `crypto/aes`/`rc4` in the binary |
+| C2 protocol | `type=ping` register · `type=0` multipart `file="data"` = encrypted `Info.yml` survey · reply = fake `405`, body = JSON `{"ping","load"}` |
+| C2 crypto | **ChaCha20**, 256-bit **ephemeral per-session key**, 8-byte nonce, counter 0 (`expand 32-byte k`) |
+| Mutex | `\BaseNamedObjects\<tag>` (e.g. `5a4378fb90db39f09c7b18d1f314e645`) |
 | UA (stager gate) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` |
 | UA (loader beacon) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36` |
 | VT | 37/67, `trojan.remus/usbljb26`, categories trojan/downloader |
@@ -208,7 +262,8 @@ This matches what has been publicly reported about the AMOS / Atomic-stealer fam
 | T1047 | Windows Management Instrumentation | loader spawns `WmiPrvSE.exe` |
 | T1082 / T1012 | System Information Discovery / Query Registry | 2929 `RegOpenKey` recon |
 | T1041 | Exfiltration Over C2 Channel | `type=0` multipart upload of the encrypted survey |
-| T1132.001 | Standard Data Encoding | custom stream cipher over the beacon body |
+| T1573 | Encrypted Channel | **ChaCha20** over the beacon, ephemeral per-session key |
+| T1622 / T1497 | Debugger Evasion / Virtualization-Sandbox Evasion | self-relaunch via `NtCreateUserProcess`, survey reports the VM |
 | T1056.002 | GUI Input Capture | fake "System Settings" password dialog |
 | T1555.001 | Keychain | `login.keychain-db`, Safe Storage keys |
 | T1539 | Steal Web Session Cookie | browser cookie stores |
