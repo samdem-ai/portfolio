@@ -103,8 +103,9 @@ L'analyse statique bloquait sur la question réseau, alors j'ai exécuté l'éch
   <Stage label="résout le C2" sub="sylpxe.click · netulse.sbs" />
   <Stage label="connexion" sub="TCP 5930 / 5621" />
   <Stage label="POST /exports, /contacts" sub="Host: github.com (usurpé)" />
-  <Stage label="corps" sub="access_token=&type=ping" />
-  <Stage label="boucle" sub="aucune tâche → aucune suite" />
+  <Stage label="enregistrement" sub="type=ping" />
+  <Stage label="exfil" sub="type=0, fichier chiffré" />
+  <Stage label="commande" sub="réponse cachée dans un 405" />
 </Pipeline>
 
 Le champ `access_token` vide est une balise d'enregistrement initiale. Ma capture FakeNet et l'analyse ANY.RUN montrent la requête identique — `POST http://github.com:5930/exports` depuis `mal.x86.exe` — ce qui prouve que la balise est bien la charge et non du bruit de navigateur.
@@ -120,7 +121,21 @@ Le champ `access_token` vide est une balise d'enregistrement initiale. Ma captur
 | Reconnaissance registre intense — 2929 `RegOpenKey`, 0 `RegSetValue` | Procmon |
 | **Aucune** persistance (ni clé Run, ni tâche, ni service), **aucun** fichier déposé, **aucun** bureau caché | Procmon + diff avant/après, 40 captures toutes en `Default` |
 
-La supposition statique était donc à moitié juste : les API de capture sont une vraie capacité, mais le comportement principal observé est un loader qui balise pour recevoir du travail. Sans C2 vivant, je ne vois pas la seconde étape — c'est la limite honnête d'une détonation absorbée.
+La supposition statique était donc à moitié juste : les API de capture sont une vraie capacité, mais dans la détonation absorbée le comportement principal observé est un loader qui balise pour recevoir du travail.
+
+### Face à un vrai C2 : il exfiltre aussi
+
+Le sinkhole ne renvoie rien, donc le loader se contente de baliser. Capturé contre le **vrai** serveur (un C2 `nginx`, pas mon sinkhole), l'échange complet révèle un loader *et* un stealer :
+
+| étape | requête | sens |
+| --- | --- | --- |
+| enregistrement | `POST /exports` · `access_token=&type=ping` | premier contact, pas encore de jeton |
+| exfil | `POST /exports` · `multipart/form-data`, `type=0`, `file="data"` = **blob chiffré de 1399 octets** | envoie un relevé de l'hôte |
+| commande | réponse `HTTP/1.1 405 Not Allowed` (nginx) avec un **corps chiffré de 62 octets** | le 405 est un statut leurre ; la vraie tâche est dans le corps |
+
+La reconnaissance registre n'est donc pas gratuite : le relevé qu'il construit est chiffré et expédié. L'envoi et la réponse sont protégés par un **chiffrement de flux maison**, pas le XOR du déchiffreur de chaînes : le binaire n'a ni `crypto/aes` ni `crypto/rc4`, la longueur du chiffré (1399) n'est pas un multiple de 16 (donc aucun mode par bloc), et son indice de coïncidence vaut ~1,008 (aléatoire) sans période de clé répétée. Un seul chiffré et aucune clé : je ne peux pas le lire — il faudrait la clé extraite du binaire garble ou relevée à l'exécution.
+
+Je n'ai **pas** contacté le C2 moi-même ; les corps requête/réponse live ont été capturés lors d'une détonation contrôlée et je les ai analysés ici. La seconde étape (ce qu'une vraie commande téléchargerait) reste invisible — c'est la limite honnête sans la clé ni un serveur coopératif.
 
 ## Charge macOS : un stealer de portefeuilles, config à un XOR près
 
@@ -165,7 +180,9 @@ Cela correspond à ce qui a été publié sur la famille AMOS / Atomic Stealer :
 | URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
 | C2 (macOS) | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
 | C2 (loader Windows) | `sylpxe[.]click`, `netulse[.]sbs` sur TCP 5930 & 5621 |
-| Requête C2 | `POST /exports`, `POST /contacts`, `Host: github.com` (usurpé), corps `access_token=&type=ping` |
+| Requête C2 | `POST /exports`, `POST /contacts`, `Host: github.com` (usurpé) |
+| Protocole C2 | `type=ping` enregistrement · `type=0` multipart `file="data"` = relevé chiffré · réponse = faux `405` à corps chiffré |
+| Crypto C2 | chiffrement de flux maison (longueur 1399 non alignée sur 16, IC ≈ 1,0) ; ni `crypto/aes` ni `rc4` dans le binaire |
 | UA (filtre stager) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` |
 | UA (balise loader) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36` |
 | VT | 37/67, `trojan.remus/usbljb26`, catégories trojan/downloader |
@@ -190,6 +207,8 @@ Cela correspond à ce qui a été publié sur la famille AMOS / Atomic Stealer :
 | T1071.001 | Web Protocols | HTTP `POST /exports` avec `Host: github.com` usurpé |
 | T1047 | Windows Management Instrumentation | le loader lance `WmiPrvSE.exe` |
 | T1082 / T1012 | System Information Discovery / Query Registry | 2929 `RegOpenKey` de recon |
+| T1041 | Exfiltration Over C2 Channel | upload multipart `type=0` du relevé chiffré |
+| T1132.001 | Standard Data Encoding | chiffrement de flux maison sur le corps de balise |
 | T1056.002 | GUI Input Capture | fausse boîte « System Settings » |
 | T1555.001 | Keychain | `login.keychain-db`, clés Safe Storage |
 | T1539 | Steal Web Session Cookie | cookies des navigateurs |

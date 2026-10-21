@@ -163,8 +163,8 @@ export const specimens: Specimen[] = [
     writeup: "youtube-paste-stealer",
     type: "Loader",
     behaviour: {
-      en: "Garbled Go loader. Decrypts its API table at runtime (hidden-desktop/GDI capture capability), then beacons POST /exports with a spoofed github.com host on TCP 5930/5621, waiting for a stage two. VT 37/67, trojan/downloader.",
-      fr: "Loader Go passé à garble. Déchiffre sa table d'API à l'exécution (capacité bureau caché / capture GDI), puis balise POST /exports avec un host github.com usurpé sur TCP 5930/5621, en attente d'une seconde étape. VT 37/67, trojan/downloader.",
+      en: "Garbled Go loader + exfil. Beacons POST /exports (spoofed github.com host) on TCP 5930/5621: registers (type=ping), uploads an encrypted host survey (type=0), gets commands hidden in a fake 405. Stream-cipher C2, hidden-desktop capture capability. VT 37/67, trojan/downloader.",
+      fr: "Loader + exfil Go garble. Balise POST /exports (host github.com usurpé) sur TCP 5930/5621 : s'enregistre (type=ping), envoie un relevé chiffré (type=0), reçoit des commandes cachées dans un faux 405. C2 à chiffrement de flux, capacité de capture bureau caché. VT 37/67, trojan/downloader.",
     },
     iocs: ["sylpxe[.]click", "netulse[.]sbs", "TCP 5930/5621", "SterlingSignalVentures"],
     attack: [
