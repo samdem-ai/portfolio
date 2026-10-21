@@ -116,13 +116,13 @@ async function Post({ params }: { params: PageProps<"/[lang]/work/[slug]">["para
                 {fr ? "Cet article n'existe pour l'instant qu'en anglais." : "This post is only available in French for now."}
               </p>
             )}
-            <div data-fade className="lg:sticky lg:top-12">
+            <div data-fade className="lg:sticky lg:top-12 lg:flex lg:max-h-[calc(100dvh-5rem)] lg:flex-col">
               {post.why && (
-                <>
+                <div className="shrink-0">
                   <p className="eyebrow">{dict.work.why}</p>
                   <p className="mt-3 text-[1.25rem] leading-snug tracking-[-0.01em]">{post.why}</p>
                   {post.note && <p className="mt-5 text-sm text-muted">{post.note}</p>}
-                </>
+                </div>
               )}
               <Toc items={toc} label={dict.work.contents} />
             </div>
