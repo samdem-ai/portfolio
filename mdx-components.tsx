@@ -30,6 +30,12 @@ const components: MDXComponents = {
   Gallery,
   h2: heading("h2"),
   h3: heading("h3"),
+  // Long tables (URLs, hashes) scroll sideways instead of blowing out the page on mobile.
+  table: (props: React.ComponentProps<"table">) => (
+    <div className="-mx-1 overflow-x-auto px-1">
+      <table {...props} />
+    </div>
+  ),
 };
 
 export function useMDXComponents(): MDXComponents {

@@ -127,7 +127,7 @@ async function Post({ params }: { params: PageProps<"/[lang]/work/[slug]">["para
               <Toc items={toc} label={dict.work.contents} />
             </div>
           </aside>
-          <div data-fade className="prose lg:col-span-8">
+          <div data-fade className="prose min-w-0 lg:col-span-8">
             <Body components={{ Results: () => <ResultsGrid items={post.results} /> }} />
           </div>
         </div>
