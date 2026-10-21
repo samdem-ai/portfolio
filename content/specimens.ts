@@ -139,4 +139,49 @@ export const specimens: Specimen[] = [
       { id: "T1070.004", name: "File Deletion" },
     ],
   },
+  {
+    name: "Stager.PastePlugin.PS1",
+    alias: "worker?=7341210743/ai-plugin",
+    type: "Stager",
+    behaviour: {
+      en: "Served only to a PowerShell User-Agent. Adds Defender exclusions, turns SmartScreen off, drops cmmd.exe, then wipes the clipboard and PSReadLine history.",
+      fr: "Servi uniquement à un User-Agent PowerShell. Ajoute des exclusions Defender, coupe SmartScreen, dépose cmmd.exe puis efface le presse-papiers et l'historique PSReadLine.",
+    },
+    iocs: ["soft-storage[.]top", "193.148.56[.]147", "cmmd.exe"],
+    attack: [
+      { id: "T1204.004", name: "Malicious Copy and Paste" },
+      { id: "T1562.001", name: "Impair Defenses" },
+      { id: "T1070.003", name: "Clear Command History" },
+    ],
+  },
+  {
+    name: "Spy.SterlingSignal.Win64",
+    alias: "cmmd.exe",
+    type: "Spy",
+    behaviour: {
+      en: "Garbled Go binary that decrypts its API table at runtime: hidden desktop, GDI screen capture, host and keyboard-layout profiling.",
+      fr: "Binaire Go passé à garble qui déchiffre sa table d'API à l'exécution : bureau caché, capture d'écran GDI, profilage de l'hôte et du clavier.",
+    },
+    iocs: ["SterlingSignalVentures", "CreateDesktopW", "BitBlt"],
+    attack: [
+      { id: "T1027.013", name: "Encrypted/Encoded File" },
+      { id: "T1106", name: "Native API" },
+      { id: "T1564.003", name: "Hidden Window" },
+    ],
+  },
+  {
+    name: "Stealer.Mrdor.macOS",
+    alias: "p7tp4i95c5x1fs96",
+    type: "Stealer",
+    behaviour: {
+      en: "AMOS-like stealer: fake System Settings password prompt, keychain, browsers, 203 wallet extensions, trojanised Ledger and Trezor apps, LaunchAgent persistence.",
+      fr: "Stealer de type AMOS : fausse invite System Settings, trousseau, navigateurs, 203 extensions de portefeuilles, Ledger et Trezor piégés, persistance par LaunchAgent.",
+    },
+    iocs: ["lewokodwqko[.]icu", "shopguoerve[.]pro", "com.hlpr.agent"],
+    attack: [
+      { id: "T1056.002", name: "GUI Input Capture" },
+      { id: "T1555.001", name: "Keychain" },
+      { id: "T1554", name: "Compromise Host Software Binary" },
+    ],
+  },
 ];

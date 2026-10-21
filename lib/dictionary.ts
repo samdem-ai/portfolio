@@ -109,7 +109,7 @@ const en = {
   lab: {
     title: "Specimen cabinet",
     lede:
-      "Nine Windows samples I analysed in an isolated lab, each renamed Type.Family.Platform after what it actually does. Reports, IOCs and indicators only: no live binaries anywhere.",
+      "Windows and macOS samples I analysed in an isolated lab, each renamed Type.Family.Platform after what it actually does. Reports, IOCs and indicators only: no live binaries anywhere.",
     alias: "filed as",
     iocs: "Indicators",
     attack: "ATT&CK (my mapping)",
@@ -247,7 +247,7 @@ const fr: Dictionary = {
   lab: {
     title: "Cabinet des spécimens",
     lede:
-      "Neuf échantillons Windows analysés en laboratoire isolé, chacun renommé Type.Famille.Plateforme d'après ce qu'il fait réellement. Rapports et indicateurs uniquement : aucun binaire actif.",
+      "Échantillons Windows et macOS analysés en laboratoire isolé, chacun renommé Type.Famille.Plateforme d'après ce qu'il fait réellement. Rapports et indicateurs uniquement : aucun binaire actif.",
     alias: "classé sous",
     iocs: "Indicateurs",
     attack: "ATT&CK (ma correspondance)",

