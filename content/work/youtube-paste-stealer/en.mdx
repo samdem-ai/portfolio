@@ -17,6 +17,8 @@ results:
     label: browser-extension IDs targeted, mostly wallets
   - value: "39"
     label: Windows APIs decrypted by emulating the string decryptor
+  - value: "3"
+    label: sources agreeing it's a loader (my sandbox, ANY.RUN, VirusTotal 37/67)
 ---
 
 ## How it started
@@ -85,7 +87,40 @@ All 78 calls (a DLL name and an API name per entry) came back clean:
 
 That set fits a hidden-desktop screen-capture tool. It creates its own desktop, screenshots it with GDI and collects host and user info. The COM security calls look like WMI queries. The keyboard-layout APIs are the usual "don't run in certain countries" check.
 
-<Note>What I could not close: no `main.*` function references networking APIs directly, and no other encrypted strings exist in the same format. Either the network layer goes through COM, or this build is one module of something larger. I'm leaving that open rather than guessing.</Note>
+<Note>What I could not close statically: no `main.*` function references networking APIs directly, and no other encrypted strings exist in the same format. Either the network layer goes through COM, or this build is one module of something larger. Detonating it answered this.</Note>
+
+## Dynamic analysis: detonating the Windows loader
+
+Static analysis stalled on the network question, so I ran the sample. Not in a convenience VM — in a disposable Windows guest on an **airgapped** Docker network, with [FakeNet-NG](https://github.com/mandiant/flare-fakenet-ng) sinkholing all DNS and TCP, Sysmon + Procmon + pktmon recording, and a per-tick screenshotter. The real C2 was never contacted. I cross-checked the result against a public [ANY.RUN](https://app.any.run/tasks/3d060605-4317-486c-af31-fa834af34580) run and [VirusTotal](https://www.virustotal.com/gui/file/85b6396c8af397f659ec0ff75df40bb3b8fdea7301a6d259745dffd65c1e20d7/details).
+
+**It's a loader, not the screen-grabber the API table suggested.** All three sources agree: VirusTotal flags it 37/67 with threat categories *trojan / downloader* (label `trojan.remus/usbljb26`, tags `calls-wmi`, `long-sleeps`, `detect-debug-environment`), and ANY.RUN tracks it as a **Loader**. The hidden-desktop and GDI capture APIs load but never fire — with the C2 sinkholed and no valid task returned, it sits in its beacon loop and never reaches capture, persistence or a second stage.
+
+### The beacon
+
+`cmmd.exe` resolves its C2, then speaks HTTP over **non-standard ports 5930 and 5621** with a spoofed `Host: github.com` header — a cheap fronting trick so a glance at the traffic says "github".
+
+<Pipeline>
+  <Stage label="resolve C2" sub="sylpxe.click · netulse.sbs" />
+  <Stage label="connect" sub="TCP 5930 / 5621" />
+  <Stage label="POST /exports, /contacts" sub="Host: github.com (spoofed)" />
+  <Stage label="body" sub="access_token=&type=ping" />
+  <Stage label="loop" sub="no task → no next stage" />
+</Pipeline>
+
+The empty `access_token` is a first-contact registration ping. My FakeNet capture and the ANY.RUN run show the identical request — `POST http://github.com:5930/exports` from `mal.x86.exe` — which is how I know the beacon is the payload and not browser noise.
+
+### What it did, and didn't
+
+| observed | evidence |
+| --- | --- |
+| Beacon to `sylpxe[.]click` / `netulse[.]sbs` on TCP 5930 & 5621 | my DNS + pcap, ANY.RUN |
+| `POST /exports` and `/contacts`, body `access_token=&type=ping` | FakeNet HTTP log, ANY.RUN |
+| Loads `ws2_32, winhttp, user32, gdi32, ole32, bcryptprimitives` at runtime | Procmon (the static table, live) |
+| Spawns `WmiPrvSE.exe` (WMI host recon) | ANY.RUN, VT tag `calls-wmi` |
+| Heavy registry **recon** — 2929 `RegOpenKey`, 0 `RegSetValue` | Procmon |
+| **No** persistence (no Run key, task or service), **no** file drop, **no** hidden desktop | Procmon + before/after diff, 40 screenshots all `Default` |
+
+So the earlier static guess was half right: the capture APIs are real capability, but the primary observed behaviour is a loader beaconing for work. Without a live C2 I can't see the second stage — that's the honest limit of a sinkholed detonation.
 
 ## macOS payload: a wallet stealer with its config in the clear (after one XOR)
 
@@ -128,8 +163,12 @@ This matches what has been publicly reported about the AMOS / Atomic-stealer fam
 | URL | `hxxp://soft-storage[.]top/worker?=7341210743/ai-plugin` |
 | URL | `hxxp://193.148.56[.]147/final_check?=7311907082/Unlim-api-plugin` |
 | URL | `hxxp://192.162.199[.]249/9rmoz4cqi58`, `/p7tp4i95c5x1fs96` |
-| C2 | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
-| UA | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` (gate) |
+| C2 (macOS) | `lewokodwqko[.]icu`, `shopguoerve[.]pro`, `dfsjfisafosdikfos[.]info`, `isosissisisossfiof[.]com` |
+| C2 (Windows loader) | `sylpxe[.]click`, `netulse[.]sbs` over TCP 5930 & 5621 |
+| C2 request | `POST /exports`, `POST /contacts`, `Host: github.com` (spoofed), body `access_token=&type=ping` |
+| UA (stager gate) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) PowerShell/7.5.0` |
+| UA (loader beacon) | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36` |
+| VT | 37/67, `trojan.remus/usbljb26`, categories trojan/downloader |
 | File | `%TEMP%\cmmd.exe`, `C:\ProgramData\cmmd.exe` |
 | File | `~/.hlpr/`, `~/Library/LaunchAgents/com.hlpr.agent.plist` |
 | SHA-256 | `ec1797ad0d54252df1cb57dfd4bb6ee9b74d71b991dcd4a8084e66638f087f31` (stager .ps1) |
@@ -146,7 +185,11 @@ This matches what has been publicly reported about the AMOS / Atomic-stealer fam
 | T1070.003 | Clear Command History | PSReadLine, clipboard history |
 | T1027.013 | Encrypted/Encoded File | garble, XOR strings, rotating-XOR config |
 | T1106 | Native API | runtime `GetProcAddress` table |
-| T1564.003 | Hidden Window (hidden desktop) | `CreateDesktopW` + GDI capture |
+| T1564.003 | Hidden Window (hidden desktop) | `CreateDesktopW` + GDI capture (capability) |
+| T1571 | Non-Standard Port | loader beacon on TCP 5930 / 5621 |
+| T1071.001 | Web Protocols | HTTP `POST /exports` with spoofed `Host: github.com` |
+| T1047 | Windows Management Instrumentation | loader spawns `WmiPrvSE.exe` |
+| T1082 / T1012 | System Information Discovery / Query Registry | 2929 `RegOpenKey` recon |
 | T1056.002 | GUI Input Capture | fake "System Settings" password dialog |
 | T1555.001 | Keychain | `login.keychain-db`, Safe Storage keys |
 | T1539 | Steal Web Session Cookie | browser cookie stores |

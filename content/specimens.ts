@@ -158,19 +158,20 @@ export const specimens: Specimen[] = [
     ],
   },
   {
-    name: "Spy.SterlingSignal.Win64",
+    name: "Loader.SterlingSignal.Win64",
     alias: "cmmd.exe",
     writeup: "youtube-paste-stealer",
-    type: "Spy",
+    type: "Loader",
     behaviour: {
-      en: "Garbled Go binary that decrypts its API table at runtime: hidden desktop, GDI screen capture, host and keyboard-layout profiling.",
-      fr: "Binaire Go passé à garble qui déchiffre sa table d'API à l'exécution : bureau caché, capture d'écran GDI, profilage de l'hôte et du clavier.",
+      en: "Garbled Go loader. Decrypts its API table at runtime (hidden-desktop/GDI capture capability), then beacons POST /exports with a spoofed github.com host on TCP 5930/5621, waiting for a stage two. VT 37/67, trojan/downloader.",
+      fr: "Loader Go passé à garble. Déchiffre sa table d'API à l'exécution (capacité bureau caché / capture GDI), puis balise POST /exports avec un host github.com usurpé sur TCP 5930/5621, en attente d'une seconde étape. VT 37/67, trojan/downloader.",
     },
-    iocs: ["SterlingSignalVentures", "CreateDesktopW", "BitBlt"],
+    iocs: ["sylpxe[.]click", "netulse[.]sbs", "TCP 5930/5621", "SterlingSignalVentures"],
     attack: [
       { id: "T1027.013", name: "Encrypted/Encoded File" },
       { id: "T1106", name: "Native API" },
-      { id: "T1564.003", name: "Hidden Window" },
+      { id: "T1571", name: "Non-Standard Port" },
+      { id: "T1071.001", name: "Web Protocols" },
     ],
   },
   {
