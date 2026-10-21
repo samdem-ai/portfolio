@@ -7,7 +7,7 @@ status: Investigation
 summary: Une chaîne YouTube à des dizaines de milliers de vues promet Claude Code, ChatGPT Plus et plus, gratuitement. L'« installeur » qu'elle donne est un leurre copier-coller qui dépose un loader Go garble sur Windows et un stealer de portefeuilles sur macOS. J'ai rétro-conçu les deux de bout en bout — jusqu'à la clé ChaCha20 et la commande du C2.
 why: Ces vidéos « obtiens l'outil IA payant gratuitement » cumulent les vues, survivent aux signalements de masse, et les commentaires qui alertent les gens sont supprimés. Je voulais prouver, octet par octet, ce qui arrive vraiment sur la machine quand on colle la commande.
 note: L'analyse dynamique s'est faite dans une VM isolée, snapshottée, LAN bloqué. Le trafic C2 live a été capturé lors d'une seule détonation contrôlée et analysé hors ligne ; je n'ai jamais recontacté les serveurs.
-cover: /work/youtube-paste-stealer/chacha20-dump.webp
+cover: /work/youtube-paste-stealer/cover.webp
 stack: [Ghidra 12.1, REA, Unicorn, x64dbg, ScyllaHide, Capstone, LIEF, Python]
 results:
   - value: "2"

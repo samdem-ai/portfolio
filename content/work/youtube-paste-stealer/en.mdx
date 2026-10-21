@@ -7,7 +7,7 @@ status: Investigation
 summary: A YouTube channel with tens of thousands of views promises free Claude Code, ChatGPT Plus and more. The "installer" it hands you is a paste-a-command lure that drops a garbled Go loader on Windows and a wallet stealer on macOS. I reversed both end-to-end — down to the ChaCha20 key and the C2's command.
 why: These "get the paid AI tool for free" videos rack up views, survive mass reporting, and the comments warning people get deleted. I wanted to prove, byte-by-byte, what actually lands on your machine when you paste the command.
 note: Dynamic analysis ran in an isolated, snapshotted VM with its LAN blocked. Live C2 traffic was captured during one controlled detonation and analysed offline; I never re-contacted the servers.
-cover: /work/youtube-paste-stealer/chacha20-dump.webp
+cover: /work/youtube-paste-stealer/cover.webp
 stack: [Ghidra 12.1, REA, Unicorn, x64dbg, ScyllaHide, Capstone, LIEF, Python]
 results:
   - value: "2"
