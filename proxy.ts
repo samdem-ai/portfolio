@@ -25,6 +25,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Skip Next internals, .well-known and anything that looks like a file.
-  matcher: ["/((?!_next|\\.well-known|.*\\..*).*)"],
+  // Skip API routes, Next internals, .well-known and anything that looks like a file.
+  matcher: ["/((?!api|_next|\\.well-known|.*\\..*).*)"],
 };

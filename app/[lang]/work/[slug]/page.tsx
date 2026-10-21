@@ -6,6 +6,7 @@ import { Magnetic } from "@/components/motion/Magnetic";
 import { Words } from "@/components/motion/Words";
 import { ResultsGrid } from "@/components/post-ui";
 import { Toc } from "@/components/Toc";
+import { ViewCounter } from "@/components/ViewCounter";
 import { getDictionary } from "@/lib/dictionary";
 import { hasLocale, href } from "@/lib/i18n";
 import { alternates } from "@/lib/seo";
@@ -84,6 +85,7 @@ async function Post({ params }: { params: PageProps<"/[lang]/work/[slug]">["para
               {!post.live && !post.repo && <span className="text-muted">—</span>}
             </dd>
           </div>
+          <ViewCounter slug={slug} label={fr ? "Vues" : "Views"} unit={fr ? "vues" : "views"} />
         </dl>
 
         {post.stack && (
