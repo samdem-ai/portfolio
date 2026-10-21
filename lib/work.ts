@@ -3,6 +3,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { projects as extraProjects } from "@/content/projects";
 import { t, type Locale } from "@/lib/i18n";
+import { tocFromSource, type TocItem } from "@/lib/toc";
 
 const WORK_DIR = path.join(process.cwd(), "content/work");
 
@@ -63,6 +64,12 @@ export function getPost(slug: string, locale: Locale): WorkItem | undefined {
   if (!getPostSlugs().includes(slug)) return undefined;
   const lang = postLocale(slug, locale);
   return { ...readMeta(path.join(WORK_DIR, slug, `${lang}.mdx`)), slug, page: `/${locale}/work/${slug}`, postLocale: lang };
+}
+
+/** The post's `##`/`###` headings, for the table of contents. */
+export function getPostToc(slug: string, locale: Locale): TocItem[] {
+  const file = path.join(WORK_DIR, slug, `${postLocale(slug, locale)}.mdx`);
+  return tocFromSource(fs.readFileSync(file, "utf8"));
 }
 
 /** Posts plus the smaller projects from content/projects.ts, sorted for display. */

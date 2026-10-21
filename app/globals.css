@@ -255,12 +255,14 @@
     font-weight: 500;
     letter-spacing: -0.03em;
     line-height: 1.1;
+    scroll-margin-top: 5rem;
   }
   .prose h3 {
     margin-top: 2em;
     color: var(--ink);
     font-size: 1.2rem;
     font-weight: 500;
+    scroll-margin-top: 5rem;
   }
   .prose h2 + *,
   .prose h3 + * {

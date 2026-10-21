@@ -56,6 +56,7 @@ const en = {
     problem: "The problem",
     why: "Why I built it",
     next: "Next case",
+    contents: "On this page",
   },
   about: {
     title: "I like knowing how things really work, especially the things trying to hide it.",
@@ -195,6 +196,7 @@ const fr: Dictionary = {
     problem: "Le problème",
     why: "Pourquoi ce projet",
     next: "Projet suivant",
+    contents: "Sur cette page",
   },
   about: {
     title: "J'aime savoir comment les choses fonctionnent vraiment, surtout celles qui essaient de le cacher.",

@@ -80,7 +80,7 @@ The base64 decodes byte-for-byte to the PE I analysed next (SHA-256 `85b6396c…
 
 ## Windows payload: garbled Go
 
-`cmmd.exe` is a 3 MB Go 1.23.1 binary built with [garble](https://github.com/burrowers/garble). Function names in `main` are random (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…). The only real name left is the source path, `SterlingSignalVentures/main.go`.
+`cmmd.exe` is a 3 MB Go 1.23.1 binary built with [garble](https://github.com/burrowers/garble) — an open-source Go obfuscator that scrambles symbol names, strips build metadata and can encrypt string literals, turning a readable Go binary into a wall of noise. So function names in `main` are random (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…), and the only real name left is the source path, `SterlingSignalVentures/main.go`.
 
 **`main.main` hides in padding.** It decompiles to 13,000 lines. Ghidra failed on it at first with `Response buffer size exceeded`, until I raised the decompiler's 50 MB payload limit (`DecompileOptions.setMaxPayloadMBytes`). Around 2,000 of its calls are `runtime.printint` / `printstring` filler, plus a decoy table printer (`mills: … men: … three-sum: …`).
 

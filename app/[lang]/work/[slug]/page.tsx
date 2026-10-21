@@ -5,10 +5,11 @@ import { Suspense } from "react";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Words } from "@/components/motion/Words";
 import { ResultsGrid } from "@/components/post-ui";
+import { Toc } from "@/components/Toc";
 import { getDictionary } from "@/lib/dictionary";
 import { hasLocale, href } from "@/lib/i18n";
 import { alternates } from "@/lib/seo";
-import { getPost, getPostSlugs, getWork } from "@/lib/work";
+import { getPost, getPostSlugs, getPostToc, getWork } from "@/lib/work";
 
 export async function generateStaticParams() {
   return getPostSlugs().map((slug) => ({ slug }));
@@ -40,6 +41,7 @@ async function Post({ params }: { params: PageProps<"/[lang]/work/[slug]">["para
 
   const posts = getWork(lang).filter((w) => w.page);
   const next = posts[(posts.findIndex((p) => p.slug === slug) + 1) % posts.length];
+  const toc = getPostToc(slug, post.postLocale ?? lang);
 
   const meta = [
     { label: fr ? "Type" : "Kind", value: post.kind === "security" ? dict.work.kindSecurity : dict.work.kindProduct },
@@ -114,13 +116,16 @@ async function Post({ params }: { params: PageProps<"/[lang]/work/[slug]">["para
                 {fr ? "Cet article n'existe pour l'instant qu'en anglais." : "This post is only available in French for now."}
               </p>
             )}
-            {post.why && (
-              <div data-fade className="lg:sticky lg:top-12">
-                <p className="eyebrow">{dict.work.why}</p>
-                <p className="mt-3 text-[1.25rem] leading-snug tracking-[-0.01em]">{post.why}</p>
-                {post.note && <p className="mt-5 text-sm text-muted">{post.note}</p>}
-              </div>
-            )}
+            <div data-fade className="lg:sticky lg:top-12">
+              {post.why && (
+                <>
+                  <p className="eyebrow">{dict.work.why}</p>
+                  <p className="mt-3 text-[1.25rem] leading-snug tracking-[-0.01em]">{post.why}</p>
+                  {post.note && <p className="mt-5 text-sm text-muted">{post.note}</p>}
+                </>
+              )}
+              <Toc items={toc} label={dict.work.contents} />
+            </div>
           </aside>
           <div data-fade className="prose lg:col-span-8">
             <Body components={{ Results: () => <ResultsGrid items={post.results} /> }} />

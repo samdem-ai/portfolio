@@ -80,7 +80,7 @@ Le base64 se décode octet pour octet vers le PE analysé ensuite (SHA-256 `85b6
 
 ## Charge Windows : du Go passé à garble
 
-`cmmd.exe` est un binaire Go 1.23.1 de 3 Mo, compilé avec [garble](https://github.com/burrowers/garble). Les fonctions de `main` portent des noms aléatoires (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…). Le seul vrai nom restant est le chemin source, `SterlingSignalVentures/main.go`.
+`cmmd.exe` est un binaire Go 1.23.1 de 3 Mo, compilé avec [garble](https://github.com/burrowers/garble) — un obfuscateur Go open-source qui brouille les noms de symboles, retire les métadonnées de build et peut chiffrer les littéraux de chaîne, transformant un binaire Go lisible en mur de bruit. Les fonctions de `main` portent donc des noms aléatoires (`main.zkWN8Ho3NqlvPT`, `main.qssh2XqU`…), et le seul vrai nom restant est le chemin source, `SterlingSignalVentures/main.go`.
 
 **`main.main` se cache dans du remplissage.** La fonction se décompile en 13 000 lignes. Ghidra échouait d'abord avec `Response buffer size exceeded`, jusqu'à ce que je relève la limite de 50 Mo du décompilateur (`DecompileOptions.setMaxPayloadMBytes`). Environ 2 000 de ses appels sont du remplissage `runtime.printint` / `printstring`, avec en prime un faux affichage de tableau (`mills: … men: … three-sum: …`).
 
