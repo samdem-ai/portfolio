@@ -186,9 +186,15 @@ La réponse est chiffrée avec une clé distincte (les sens bot→C2 et C2→bot
 {"ping":-1,"load":[]}
 ```
 
+<Figure src="/work/youtube-paste-stealer/c2-command.png" caption={'La réponse du C2 déchiffrée dans les registres : RDI (et R15) pointent sur la commande JSON en clair juste après que le loader déchiffre le corps du 405 — x64dbg.'} alt={'Panneau de registres x64dbg : RDI et R15 pointent sur la commande JSON déchiffrée.'} />
+
 C'est tout l'intérêt d'un loader — et le tableau `load` est **vide**. Le C2 n'a renvoyé aucune seconde étape. `load` est la liste des charges à télécharger et exécuter ; pour notre hôte, rien n'est revenu, très probablement parce que le relevé qu'il venait de recevoir hurle « sandbox » (`VirtIO GPU`, un chemin `C:\analysis`, une liste de logiciels minimale). Les API de bureau caché et de capture d'écran sont une vraie capacité que l'opérateur active en mettant une entrée dans `load` — il ne l'a juste pas fait, pour nous.
 
 La boucle est bouclée de bout en bout : vidéo → paste → stager filtré par UA → loader Go garble → relevé d'hôte chiffré ChaCha20 → tâche du C2. La seule chose qu'on n'a jamais vue est un `load` rempli — contrôlé par l'opérateur, et vide pour une machine qui ressemble à un labo.
+
+### Pas de persistance — pour l'instant
+
+À chaque détonation, le loader n'a écrit **aucune** clé Run, tâche planifiée ou service, et n'a rien déposé sur le disque. Ce n'est pas une lacune de l'analyse — c'est le principe. La persistance, la capture par bureau caché, un stealer, un ransomware : tout cela vit dans une charge de seconde étape qui n'arrive que quand l'opérateur met une entrée dans `load`. Sur cet hôte, il a choisi de ne pas le faire. « Aucune persistance trouvée » veut donc dire *pas cette fois* : dès qu'une victime paraît valoir la peine d'être gardée, le même canal `load` peut installer ce qu'il décide, sans rien changer au binaire déjà présent sur la machine.
 
 ## Charge macOS : un stealer de portefeuilles, config à un XOR près
 

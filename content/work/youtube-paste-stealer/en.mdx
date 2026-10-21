@@ -186,9 +186,15 @@ The reply is keyed separately (the bot→C2 and C2→bot directions use differen
 {"ping":-1,"load":[]}
 ```
 
+<Figure src="/work/youtube-paste-stealer/c2-command.png" caption={'The decrypted C2 reply in the registers: RDI (and R15) point at the cleartext JSON command right after the loader decrypts the 405 body — x64dbg.'} alt={'x64dbg register pane: RDI and R15 point to the decrypted JSON command.'} />
+
 That's the whole point of a loader — and the `load` array is **empty**. The C2 returned no second stage. `load` is the list of payloads to fetch and run; for our host it came back with nothing, most likely because the survey it just received screams sandbox (`VirtIO GPU`, a `C:\analysis` path, a bare software list). The hidden-desktop and screen-capture APIs are real capability the operator can switch on by putting an entry in `load` — they just didn't, for us.
 
 That closes the loop end to end: video → paste → UA-gated stager → garbled Go loader → ChaCha20-encrypted host survey → C2 tasking. The only thing we never saw is a populated `load` — operator-controlled, and empty for a machine that looks like a lab.
+
+### No persistence — yet
+
+Across every detonation the loader wrote **no** Run key, scheduled task or service, and dropped nothing to disk. That isn't a gap in the analysis — it's the design. Persistence, the hidden-desktop capture, a stealer, ransomware: all of it lives in a stage-2 payload that only arrives when the operator puts an entry in `load`. On this host they chose not to. So "no persistence found" means *not this time* — the moment a victim looks worth keeping, the same `load` channel can install whatever they decide, with no change to the binary already sitting on the machine.
 
 ## macOS payload: a wallet stealer with its config in the clear (after one XOR)
 
